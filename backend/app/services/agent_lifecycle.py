@@ -9,6 +9,7 @@ from app.core.logging import log_agent_event
 from app.core.kafka_service import publish_agent_event
 from app.models.agent import Agent, AgentStatus, AgentType
 from app.db.database import get_db_session
+from app.services.crewai_service import crewai_service
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ class AgentLifecycleManager:
         self.active_agents: Dict[str, Dict[str, Any]] = {}
         self.agent_health: Dict[str, Dict[str, Any]] = {}
         self.performance_metrics: Dict[str, List[Dict[str, Any]]] = {}
+        self.crewai_agents: Dict[str, Any] = {}  # Store CrewAI agent references
     
     async def create_agent(self, agent_config: Dict[str, Any], db: Session) -> str:
         """Create a new agent instance"""
@@ -93,8 +95,20 @@ class AgentLifecycleManager:
             agent = self.active_agents[agent_id]
             agent['state'] = AgentLifecycleState.INITIALIZING
             
-            # Simulate initialization process
-            await asyncio.sleep(2)
+            # Initialize with CrewAI service if it's an integration agent
+            config = agent['config']
+            agent_type = config.get('type', 'specialist')
+            
+            if agent_type in ['integration', 'router']:
+                # Link to CrewAI service for AI agents
+                if agent_id == 'router_001' or agent_type == 'router':
+                    self.crewai_agents[agent_id] = crewai_service.router_agent
+                else:
+                    # Find corresponding integration agent
+                    for crewai_id, crewai_agent in crewai_service.integration_agents.items():
+                        if agent_id in crewai_id or config.get('integration_name', '') in crewai_id:
+                            self.crewai_agents[agent_id] = crewai_agent
+                            break
             
             # Update agent state
             agent['state'] = AgentLifecycleState.ACTIVE
@@ -104,7 +118,10 @@ class AgentLifecycleManager:
             await self._update_agent_status(agent_id, AgentStatus.ACTIVE)
             
             log_agent_event(agent_id, "agent_initialized")
-            await publish_agent_event(agent_id, "agent_initialized", {})
+            await publish_agent_event(agent_id, "agent_initialized", {
+                'agent_type': agent_type,
+                'has_crewai_agent': agent_id in self.crewai_agents
+            })
             
             return True
             
@@ -208,7 +225,10 @@ class AgentLifecycleManager:
             agent['task_started_at'] = datetime.utcnow()
             
             log_agent_event(agent_id, "task_assigned", task=task)
-            await publish_agent_event(agent_id, "task_assigned", task)
+            await publish_agent_event(agent_id, "task_assigned", {
+                'task': task,
+                'has_crewai_agent': agent_id in self.crewai_agents
+            })
             
             return True
             
@@ -297,6 +317,18 @@ class AgentLifecycleManager:
         agent = self.active_agents[agent_id]
         health = self.agent_health.get(agent_id, {})
         
+        # Get CrewAI agent info if available
+        crewai_info = {}
+        if agent_id in self.crewai_agents:
+            crewai_agent = self.crewai_agents[agent_id]
+            if hasattr(crewai_agent, 'role'):
+                crewai_info = {
+                    'role': crewai_agent.role,
+                    'goal': getattr(crewai_agent, 'goal', ''),
+                    'backstory': getattr(crewai_agent, 'backstory', ''),
+                    'verbose': getattr(crewai_agent, 'verbose', False)
+                }
+        
         return {
             'id': agent_id,
             'state': agent['state'],
@@ -306,7 +338,9 @@ class AgentLifecycleManager:
             'last_heartbeat': agent['last_heartbeat'].isoformat(),
             'response_time': health.get('response_time', 0.0),
             'memory_usage': health.get('memory_usage', 0.0),
-            'cpu_usage': health.get('cpu_usage', 0.0)
+            'cpu_usage': health.get('cpu_usage', 0.0),
+            'has_crewai_agent': agent_id in self.crewai_agents,
+            'crewai_info': crewai_info
         }
     
     async def get_all_agents_status(self) -> List[Dict[str, Any]]:
@@ -332,6 +366,10 @@ class AgentLifecycleManager:
                     agents_to_remove.append(agent_id)
             
             for agent_id in agents_to_remove:
+                # Clean up CrewAI agent reference
+                if agent_id in self.crewai_agents:
+                    del self.crewai_agents[agent_id]
+                
                 del self.active_agents[agent_id]
                 if agent_id in self.agent_health:
                     del self.agent_health[agent_id]
@@ -346,10 +384,45 @@ class AgentLifecycleManager:
 # Global instance
 agent_lifecycle_manager = AgentLifecycleManager()
 
-# Convenience functions
+# Enhanced convenience functions for CrewAI integration
 async def create_agent(config: Dict[str, Any], db: Session) -> str:
     """Create a new agent"""
     return await agent_lifecycle_manager.create_agent(config, db)
+
+async def initialize_crewai_integration(db: Session) -> bool:
+    """Initialize CrewAI agents and link with lifecycle manager"""
+    try:
+        # Initialize CrewAI service
+        await crewai_service.initialize_agents(db)
+        
+        # Create lifecycle entries for CrewAI agents
+        if crewai_service.router_agent:
+            config = {
+                'name': 'Router Agent',
+                'type': 'router',
+                'description': 'Main router and orchestration agent',
+                'capabilities': ['routing', 'orchestration', 'aggregation']
+            }
+            agent_id = await create_agent(config, db)
+            await agent_lifecycle_manager.initialize_agent(agent_id)
+        
+        # Create entries for integration agents
+        for integration_id, crewai_agent in crewai_service.integration_agents.items():
+            config = {
+                'name': f'Integration Agent {integration_id}',
+                'type': 'integration',
+                'description': f'Specialized agent for {integration_id}',
+                'integration_name': integration_id,
+                'capabilities': ['api_calls', 'data_processing', 'integration_management']
+            }
+            agent_id = await create_agent(config, db)
+            await agent_lifecycle_manager.initialize_agent(agent_id)
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize CrewAI integration: {e}")
+        return False
 
 async def start_agent(agent_id: str) -> bool:
     """Start an agent"""
@@ -363,6 +436,41 @@ async def assign_task(agent_id: str, task: Dict[str, Any]) -> bool:
     """Assign a task to an agent"""
     return await agent_lifecycle_manager.assign_task(agent_id, task)
 
+async def execute_agent_task(agent_id: str, query: str, user_id: str, session_id: str) -> Dict[str, Any]:
+    """Execute a task using CrewAI integration"""
+    try:
+        # Assign task to agent
+        task = {
+            'type': 'query_processing',
+            'query': query,
+            'user_id': user_id,
+            'session_id': session_id
+        }
+        
+        assigned = await assign_task(agent_id, task)
+        if not assigned:
+            return {'error': 'Failed to assign task to agent', 'status': 'failed'}
+        
+        # Execute through CrewAI service
+        result = await crewai_service.process_query(query, user_id, session_id)
+        
+        # Mark task as completed
+        await agent_lifecycle_manager.complete_task(agent_id, result)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Failed to execute agent task: {e}")
+        return {'error': str(e), 'status': 'failed'}
+
 async def get_agent_status(agent_id: str) -> Optional[Dict[str, Any]]:
     """Get agent status"""
     return await agent_lifecycle_manager.get_agent_status(agent_id)
+
+async def get_crewai_agents_status() -> Dict[str, Any]:
+    """Get status of all CrewAI agents"""
+    try:
+        return await crewai_service.get_all_agents_status()
+    except Exception as e:
+        logger.error(f"Failed to get CrewAI agents status: {e}")
+        return {'error': str(e)}

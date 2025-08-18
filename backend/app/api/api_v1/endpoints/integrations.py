@@ -20,9 +20,49 @@ from app.schemas.integration import (
 from app.core.encryption import encrypt_credentials, decrypt_credentials
 from app.core.logging import log_integration_event
 from app.core.kafka_service import publish_integration_event
-from app.services.crewai_service import initialize_agents
+# Temporarily disabled for testing - from app.services.crewai_service import initialize_agents
+from app.services.integration_service import integration_service
 
 router = APIRouter()
+
+@router.get("/templates")
+async def get_integration_templates(
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get all available integration templates"""
+    try:
+        templates = integration_service.get_all_templates()
+        return {
+            "templates": templates,
+            "total": len(templates)
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve integration templates"
+        )
+
+@router.get("/templates/{integration_type}")
+async def get_integration_template(
+    integration_type: IntegrationType,
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get a specific integration template"""
+    try:
+        template = integration_service.get_integration_template(integration_type)
+        if not template:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Template not found for integration type: {integration_type}"
+            )
+        return template
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve integration template"
+        )
 
 @router.post("/", response_model=IntegrationResponse, status_code=status.HTTP_201_CREATED)
 async def create_integration(
@@ -30,39 +70,33 @@ async def create_integration(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db_session)
 ):
-    """Create a new integration"""
+    """Create a new integration with real API connection"""
     try:
-        # Encrypt credentials before storage
-        encrypted_creds = encrypt_credentials(integration_data.credentials)
-        key_id = "key_" + str(datetime.utcnow().timestamp())
-        
-        # Create integration
-        db_integration = Integration(
+        # Use the integration service to create a real integration
+        db_integration = await integration_service.create_integration(
+            db=db,
             name=integration_data.name,
-            description=integration_data.description,
             integration_type=integration_data.integration_type,
-            base_url=str(integration_data.base_url),
-            encrypted_credentials=encrypted_creds,
-            encryption_key_id=key_id,
-            config=integration_data.config,
-            rate_limit=integration_data.rate_limit,
-            timeout=integration_data.timeout,
-            owner_id=current_user.id,
-            tenant_id=getattr(current_user, 'tenant_id', 'default')
+            credentials=integration_data.credentials,
+            config=integration_data.config or {},
+            user_id=current_user.id
         )
         
-        db.add(db_integration)
-        db.commit()
-        db.refresh(db_integration)
-        
-        # Initialize agents for this integration
-        await initialize_agents(db)
-        
-        log_integration_event(db_integration.id, "integration_created", user_id=current_user.id)
-        await publish_integration_event(str(db_integration.id), "integration_created", {
-            "name": db_integration.name,
-            "type": db_integration.integration_type.value
-        })
+        # Initialize agents for this integration (temporarily disabled for testing)
+        # try:
+        #     await initialize_agents(db)
+        # except Exception as e:
+        #     print(f"Warning: Failed to initialize agents (development mode): {e}")
+            
+        # Publish Kafka event (optional in development)
+        try:
+            await publish_integration_event(str(db_integration.id), "integration_created", {
+                "name": db_integration.name,
+                "type": db_integration.integration_type.value,
+                "status": db_integration.status.value
+            })
+        except Exception as e:
+            print(f"Warning: Failed to publish Kafka event (development mode): {e}")
         
         return IntegrationResponse(
             id=db_integration.id,
@@ -80,16 +114,22 @@ async def create_integration(
             error_count=db_integration.error_count,
             last_error=db_integration.last_error,
             last_health_check=db_integration.last_health_check,
-            created_at=db_integration.created_at.isoformat(),
-            updated_at=db_integration.updated_at.isoformat()
+            created_at=db_integration.created_at.isoformat() if db_integration.created_at else None,
+            updated_at=db_integration.updated_at.isoformat() if db_integration.updated_at else None
         )
         
+    except ValueError as e:
+        # Handle validation errors (missing credentials, etc.)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
     except Exception as e:
         db.rollback()
         log_integration_event(0, "integration_creation_failed", error=str(e), user_id=current_user.id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create integration"
+            detail=f"Failed to create integration: {str(e)}"
         )
 
 @router.get("/", response_model=List[IntegrationResponse])
@@ -120,8 +160,8 @@ async def get_integrations(
                 error_count=integration.error_count,
                 last_error=integration.last_error,
                 last_health_check=integration.last_health_check,
-                created_at=integration.created_at.isoformat(),
-                updated_at=integration.updated_at.isoformat()
+                created_at=integration.created_at.isoformat() if integration.created_at else None,
+                updated_at=integration.updated_at.isoformat() if integration.updated_at else None
             )
             for integration in integrations
         ]
@@ -168,8 +208,8 @@ async def get_integration(
             error_count=integration.error_count,
             last_error=integration.last_error,
             last_health_check=integration.last_health_check,
-            created_at=integration.created_at.isoformat(),
-            updated_at=integration.updated_at.isoformat()
+            created_at=integration.created_at.isoformat() if integration.created_at else None,
+            updated_at=integration.updated_at.isoformat() if integration.updated_at else None
         )
         
     except HTTPException:
@@ -228,8 +268,8 @@ async def update_integration(
             error_count=integration.error_count,
             last_error=integration.last_error,
             last_health_check=integration.last_health_check,
-            created_at=integration.created_at.isoformat(),
-            updated_at=integration.updated_at.isoformat()
+            created_at=integration.created_at.isoformat() if integration.created_at else None,
+            updated_at=integration.updated_at.isoformat() if integration.updated_at else None
         )
         
     except HTTPException:
@@ -280,11 +320,10 @@ async def delete_integration(
 @router.post("/{integration_id}/test", response_model=IntegrationTestResponse)
 async def test_integration(
     integration_id: int,
-    test_data: IntegrationTestRequest,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db_session)
 ):
-    """Test an integration connection"""
+    """Test an integration connection using real API calls"""
     try:
         integration = db.query(Integration).filter(
             Integration.id == integration_id,
@@ -297,26 +336,40 @@ async def test_integration(
                 detail="Integration not found"
             )
         
-        # Test the connection
-        test_result = await _test_connection(test_data)
+        # Test the connection using the integration service
+        start_time = datetime.utcnow()
+        is_connected, message = await integration_service.test_integration_connection(integration)
+        end_time = datetime.utcnow()
+        response_time = (end_time - start_time).total_seconds()
         
         # Update integration status based on test result
-        if test_result.success:
+        if is_connected:
             integration.status = IntegrationStatus.ACTIVE
             integration.health_status = "healthy"
             integration.last_health_check = datetime.utcnow().isoformat()
+            integration.error_count = 0
+            integration.last_error = None
         else:
             integration.status = IntegrationStatus.ERROR
             integration.health_status = "unhealthy"
-            integration.error_count += 1
-            integration.last_error = test_result.error_details
+            integration.error_count = (integration.error_count or 0) + 1
+            integration.last_error = message
             integration.last_health_check = datetime.utcnow().isoformat()
         
         db.commit()
         
+        # Create response
+        test_result = IntegrationTestResponse(
+            success=is_connected,
+            message=message,
+            response_time=response_time,
+            status_code=200 if is_connected else 500,
+            error_details=None if is_connected else message
+        )
+        
         log_integration_event(integration_id, "integration_tested", 
-                            success=test_result.success, 
-                            response_time=test_result.response_time)
+                            success=is_connected, 
+                            response_time=response_time)
         
         return test_result
         
@@ -449,20 +502,12 @@ async def run_health_check(
         )
 
 async def _run_health_check_background(integration_id: int, db: Session):
-    """Run health check in background"""
+    """Run health check in background using real API calls"""
     try:
-        # This would perform actual health checks
-        # For now, just simulate
-        await asyncio.sleep(2)
+        # Use the integration service to perform real health monitoring
+        await integration_service.monitor_integration_health(db, integration_id)
         
-        # Update integration health status
-        integration = db.query(Integration).filter(Integration.id == integration_id).first()
-        if integration:
-            integration.last_health_check = datetime.utcnow().isoformat()
-            integration.health_status = "healthy"
-            db.commit()
-            
-            log_integration_event(integration_id, "health_check_completed", status="healthy")
-            
+        log_integration_event(integration_id, "health_check_completed", status="completed")
+        
     except Exception as e:
         log_integration_event(integration_id, "health_check_background_failed", error=str(e))

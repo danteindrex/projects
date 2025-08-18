@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { apiClient } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { 
   PaperAirplaneIcon, 
@@ -26,6 +28,7 @@ interface ToolCallEvent {
 }
 
 export default function ChatInterface() {
+  const { user, isAuthenticated } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isConnected, setIsConnected] = useState(false);
@@ -35,36 +38,124 @@ export default function ChatInterface() {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Initialize WebSocket connection
-    initializeWebSocket();
-    
-    // Add welcome message
-    setMessages([
-      {
-        id: 'welcome',
-        content: 'Hello! I\'m your AI assistant. I can help you query your business systems, analyze data, and provide insights. What would you like to know?',
-        type: 'assistant',
-        timestamp: new Date().toISOString()
-      }
-    ]);
+    if (isAuthenticated) {
+      // Initialize WebSocket connection
+      initializeWebSocket();
+      
+      // Add welcome message
+      setMessages([
+        {
+          id: 'welcome',
+          content: `Hello ${user?.full_name || user?.username}! I'm your AI assistant. I can help you query your business systems, analyze data, and provide insights. What would you like to know?`,
+          type: 'assistant',
+          timestamp: new Date().toISOString()
+        }
+      ]);
+    }
 
     return () => {
       if (wsRef.current) {
         wsRef.current.close();
       }
     };
-  }, []);
+  }, [isAuthenticated, user]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
   const initializeWebSocket = () => {
-    // In real implementation, this would connect to the backend WebSocket
-    // For now, simulate the connection
-    setIsConnected(true);
+    if (!isAuthenticated || !apiClient.getToken()) {
+      return;
+    }
+
+    try {
+      const wsUrl = `${apiClient.getWebSocketUrl()}?token=${apiClient.getToken()}`;
+      const ws = new WebSocket(wsUrl);
+      
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+        setIsConnected(true);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          handleWebSocketMessage(data);
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log('WebSocket disconnected');
+        setIsConnected(false);
+        // Try to reconnect after 3 seconds
+        setTimeout(() => {
+          if (isAuthenticated) {
+            initializeWebSocket();
+          }
+        }, 3000);
+      };
+
+      ws.onerror = (error) => {
+        console.warn('WebSocket connection failed, falling back to API calls:', error);
+        setIsConnected(false);
+      };
+
+      wsRef.current = ws;
+    } catch (error) {
+      console.error('Failed to initialize WebSocket:', error);
+      // Fallback to simulated connection for development
+      setIsConnected(true);
+    }
+  };
+
+  const handleWebSocketMessage = (data: any) => {
+    switch (data.type) {
+      case 'message':
+        const message: ChatMessage = {
+          id: data.id || Date.now().toString(),
+          content: data.content,
+          type: data.message_type || 'assistant',
+          timestamp: data.timestamp || new Date().toISOString(),
+          metadata: data.metadata
+        };
+        setMessages(prev => [...prev, message]);
+        break;
+      
+      case 'tool_call':
+        setCurrentToolCall(data);
+        break;
+      
+      case 'thinking':
+        setIsThinking(data.thinking);
+        break;
+      
+      case 'stream_chunk':
+        // Handle streaming response
+        updateLastMessage(data.content);
+        break;
+      
+      default:
+        console.log('Unknown message type:', data.type);
+    }
+  };
+
+  const updateLastMessage = (content: string) => {
+    setMessages(prev => {
+      const lastMessage = prev[prev.length - 1];
+      if (lastMessage && lastMessage.type === 'assistant') {
+        return [
+          ...prev.slice(0, -1),
+          { ...lastMessage, content: content }
+        ];
+      }
+      return prev;
+    });
   };
 
   const scrollToBottom = () => {
@@ -72,7 +163,7 @@ export default function ChatInterface() {
   };
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || isLoading) return;
+    if (!inputValue.trim() || isLoading || !isConnected) return;
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -82,11 +173,27 @@ export default function ChatInterface() {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const messageContent = inputValue;
     setInputValue('');
     setIsLoading(true);
 
-    // Simulate AI processing
-    await simulateAIResponse(userMessage.content);
+    try {
+      // Send message via WebSocket if connected
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: 'message',
+          content: messageContent,
+          timestamp: new Date().toISOString()
+        }));
+      } else {
+        // Fallback to simulation if WebSocket not available
+        await simulateAIResponse(messageContent);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // Fallback to simulation
+      await simulateAIResponse(messageContent);
+    }
   };
 
   const simulateAIResponse = async (userInput: string) => {
@@ -241,23 +348,33 @@ export default function ChatInterface() {
   return (
     <div className="flex flex-col h-full bg-neutral-50">
       {/* Header */}
-      <div className="bg-white border-b border-neutral-200 px-6 py-4">
+      <header className="bg-white border-b border-neutral-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-neutral-900">AI Assistant Chat</h2>
+            <h1 className="text-lg font-semibold text-neutral-900">AI Assistant Chat</h1>
             <p className="text-sm text-neutral-600">Ask me anything about your business systems</p>
           </div>
           <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <span className="text-sm text-neutral-600">
+            <div 
+              className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}
+              role="status"
+              aria-label={isConnected ? 'Connected to chat service' : 'Disconnected from chat service'}
+            ></div>
+            <span className="text-sm text-neutral-600" aria-live="polite">
               {isConnected ? 'Connected' : 'Disconnected'}
             </span>
           </div>
         </div>
-      </div>
+      </header>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <main 
+        id="main-content"
+        className="flex-1 overflow-y-auto p-6 space-y-4"
+        role="log"
+        aria-label="Chat messages"
+        aria-live="polite"
+      >
         {messages.map((message) => (
           <div
             key={message.id}
@@ -271,11 +388,18 @@ export default function ChatInterface() {
               </div>
             )}
             
-            <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg shadow-soft ${getMessageStyle(message.type)}`}>
+            <div 
+              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg shadow-soft ${getMessageStyle(message.type)}`}
+              role="article"
+              aria-label={`${message.type === 'user' ? 'Your message' : 'AI response'} at ${new Date(message.timestamp).toLocaleTimeString()}`}
+            >
               <p className="text-sm">{message.content}</p>
-              <p className="text-xs opacity-70 mt-1">
+              <time 
+                className="text-xs opacity-70 mt-1 block"
+                dateTime={message.timestamp}
+              >
                 {new Date(message.timestamp).toLocaleTimeString()}
-              </p>
+              </time>
             </div>
 
             {message.type === 'user' && (
@@ -319,35 +443,47 @@ export default function ChatInterface() {
         )}
 
         <div ref={messagesEndRef} />
-      </div>
+      </main>
 
       {/* Input */}
-      <div className="bg-white border-t border-neutral-200 px-6 py-4">
-        <div className="flex space-x-3">
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-            placeholder="Ask me about your business systems..."
-            className="flex-1 px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            disabled={isLoading}
-          />
-          <Button
-            onClick={handleSendMessage}
-            disabled={!inputValue.trim() || isLoading}
-            loading={isLoading}
-            className="px-6"
-          >
-            <PaperAirplaneIcon className="h-4 w-4" />
-          </Button>
-        </div>
-        
-        {isLoading && (
-          <p className="text-xs text-neutral-500 mt-2 text-center">
-            AI is processing your request...
+      <div className="bg-white border-t border-neutral-200 px-6 py-4" role="region" aria-label="Message input">
+        <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }}>
+          <div className="flex space-x-3">
+            <label htmlFor="chat-input" className="sr-only">
+              Type your message
+            </label>
+            <input
+              id="chat-input"
+              ref={inputRef}
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder="Ask me about your business systems..."
+              className="flex-1 px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              disabled={isLoading}
+              aria-describedby="chat-help-text"
+            />
+            <Button
+              type="submit"
+              disabled={!inputValue.trim() || isLoading}
+              loading={isLoading}
+              className="px-6"
+              aria-label="Send message"
+            >
+              <PaperAirplaneIcon className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+          
+          <p id="chat-help-text" className="text-xs text-neutral-500 mt-2">
+            Press Enter to send, or click the send button
           </p>
-        )}
+          
+          {isLoading && (
+            <p className="text-xs text-neutral-500 mt-2 text-center" aria-live="polite">
+              AI is processing your request...
+            </p>
+          )}
+        </form>
       </div>
     </div>
   );

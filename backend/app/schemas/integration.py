@@ -11,19 +11,19 @@ class IntegrationBase(BaseModel):
     rate_limit: Optional[int] = 100
     timeout: Optional[int] = 30
 
-class IntegrationCreate(IntegrationBase):
+class IntegrationCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    integration_type: IntegrationType
     credentials: Dict[str, str]  # Will be encrypted before storage
+    config: Optional[Dict[str, Any]] = {}
+    rate_limit: Optional[int] = 100
+    timeout: Optional[int] = 30
     
     @validator('name')
     def validate_name(cls, v):
         if len(v) < 2:
             raise ValueError('Integration name must be at least 2 characters long')
-        return v
-    
-    @validator('base_url')
-    def validate_url(cls, v):
-        if not str(v).startswith(('http://', 'https://')):
-            raise ValueError('Base URL must start with http:// or https://')
         return v
 
 class IntegrationUpdate(BaseModel):
@@ -43,8 +43,8 @@ class IntegrationResponse(IntegrationBase):
     error_count: int
     last_error: Optional[str]
     last_health_check: Optional[str]
-    created_at: str
-    updated_at: str
+    created_at: Optional[str]
+    updated_at: Optional[str]
     
     class Config:
         from_attributes = True

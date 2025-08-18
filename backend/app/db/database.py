@@ -56,9 +56,17 @@ def get_db():
     finally:
         db.close()
 
-def get_db_session() -> Session:
-    """Get a database session"""
-    return SessionLocal()
+def get_db_session():
+    """Get a database session with proper lifecycle management"""
+    db = SessionLocal()
+    try:
+        yield db
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Database session error: {e}")
+        raise
+    finally:
+        db.close()
 
 # Database health check
 def check_db_connection() -> bool:

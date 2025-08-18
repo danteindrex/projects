@@ -17,17 +17,17 @@ export default function HomePage() {
             </p>
             <div className="mt-10 flex items-center justify-center gap-x-6">
               <Link
-                href="/dashboard"
+                href="/login"
                 className="rounded-md bg-primary-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
               >
-                Get started
+                Sign In
                 <ArrowRightIcon className="ml-2 -mr-1 h-4 w-4 inline" />
               </Link>
               <Link
-                href="/integrations"
+                href="/register"
                 className="text-sm font-semibold leading-6 text-neutral-900 hover:text-primary-600"
               >
-                View Integrations <span aria-hidden="true">→</span>
+                Create Account <span aria-hidden="true">→</span>
               </Link>
             </div>
           </div>

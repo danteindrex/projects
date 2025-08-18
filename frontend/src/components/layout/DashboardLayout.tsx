@@ -1,6 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { 
   Bars3Icon, 
   XMarkIcon, 
@@ -19,17 +22,24 @@ interface DashboardLayoutProps {
 }
 
 const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: HomeIcon, current: true },
-  { name: 'Integrations', href: '/integrations', icon: PuzzlePieceIcon, current: false },
-  { name: 'Chat', href: '/chat', icon: ChatBubbleLeftRightIcon, current: false },
-  { name: 'Analytics', href: '/analytics', icon: ChartBarIcon, current: false },
-  { name: 'Admin', href: '/admin', icon: CogIcon, current: false },
-  { name: 'Checklist', href: '/checklist', icon: CheckCircleIcon, current: false },
-  { name: 'Team', href: '/team', icon: UserGroupIcon, current: false },
+  { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
+  { name: 'Integrations', href: '/integrations', icon: PuzzlePieceIcon },
+  { name: 'Chat', href: '/chat', icon: ChatBubbleLeftRightIcon },
+  { name: 'Analytics', href: '/analytics', icon: ChartBarIcon },
+  { name: 'Admin', href: '/admin', icon: CogIcon },
+  { name: 'Checklist', href: '/checklist', icon: CheckCircleIcon },
+  { name: 'Team', href: '/team', icon: UserGroupIcon },
 ];
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user, logout } = useAuth();
+  const pathname = usePathname();
+
+  const handleLogout = () => {
+    logout();
+    window.location.href = '/login';
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -59,26 +69,29 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </button>
             </div>
             <nav className="flex-1 space-y-1 px-3 py-4">
-              {navigation.map((item) => (
-                <a
-                  key={item.name}
-                  href={item.href}
-                  className={cn(
-                    item.current
-                      ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-600'
-                      : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900',
-                    'group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors'
-                  )}
-                >
-                  <item.icon
+              {navigation.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
                     className={cn(
-                      item.current ? 'text-primary-600' : 'text-neutral-400 group-hover:text-neutral-500',
-                      'mr-3 h-5 w-5 flex-shrink-0'
+                      isActive
+                        ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-600'
+                        : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900',
+                      'group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors'
                     )}
-                  />
-                  {item.name}
-                </a>
-              ))}
+                  >
+                    <item.icon
+                      className={cn(
+                        isActive ? 'text-primary-600' : 'text-neutral-400 group-hover:text-neutral-500',
+                        'mr-3 h-5 w-5 flex-shrink-0'
+                      )}
+                    />
+                    {item.name}
+                  </Link>
+                );
+              })}
             </nav>
           </div>
         </div>
@@ -98,26 +111,29 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
           </div>
           <nav className="flex-1 space-y-1 px-3 py-4">
-            {navigation.map((item) => (
-              <a
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  item.current
-                    ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-600'
-                    : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900',
-                  'group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors'
-                )}
-              >
-                <item.icon
+            {navigation.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
                   className={cn(
-                    item.current ? 'text-primary-600' : 'text-neutral-400 group-hover:text-neutral-500',
-                    'mr-3 h-5 w-5 flex-shrink-0'
+                    isActive
+                      ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-600'
+                      : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900',
+                    'group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors'
                   )}
-                />
-                {item.name}
-              </a>
-            ))}
+                >
+                  <item.icon
+                    className={cn(
+                      isActive ? 'text-primary-600' : 'text-neutral-400 group-hover:text-neutral-500',
+                      'mr-3 h-5 w-5 flex-shrink-0'
+                    )}
+                  />
+                  {item.name}
+                </Link>
+              );
+            })}
           </nav>
         </div>
       </div>
@@ -141,7 +157,19 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </h1>
             </div>
             <div className="flex items-center gap-x-4 lg:gap-x-6">
-              {/* Add user menu, notifications, etc. here */}
+              {/* User menu */}
+              <div className="flex items-center gap-x-3">
+                <div className="text-sm">
+                  <div className="font-medium text-neutral-900">{user?.full_name || user?.username}</div>
+                  <div className="text-neutral-500">{user?.email}</div>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="rounded-md bg-neutral-100 px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-neutral-200"
+                >
+                  Logout
+                </button>
+              </div>
             </div>
           </div>
         </div>

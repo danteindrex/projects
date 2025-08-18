@@ -5,14 +5,17 @@ from typing import List, Dict, Any
 import json
 import asyncio
 import uuid
+import logging
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from app.core.security import get_current_active_user
 from app.db.database import get_db_session
 from app.models.user import User
 from app.models.chat import ChatSession, ChatMessage
 from app.schemas.chat import ChatRequest, ChatResponse, WebSocketMessage, ToolCallEvent, AgentEvent
-from app.core.logging import log_websocket_event, log_event
+from app.core.logging import log_websocket_event
 from app.core.kafka_service import publish_chat_event
 
 router = APIRouter()
@@ -58,23 +61,49 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-@router.websocket("/ws/{session_id}")
-async def websocket_endpoint(websocket: WebSocket, session_id: str):
-    """WebSocket endpoint for real-time chat"""
+@router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket, token: str = None):
+    """WebSocket endpoint for real-time chat with token authentication"""
     connection_id = None
+    user_id = None
     try:
-        # Accept the connection
+        # Authenticate token
+        if not token:
+            await websocket.close(code=1008, reason="Missing authentication token")
+            return
+            
+        # Verify token 
+        try:
+            from app.core.security import verify_token
+            payload = verify_token(token)
+            if not payload:
+                await websocket.close(code=1008, reason="Invalid token")
+                return
+            user_id = payload.get("sub")
+            if not user_id:
+                await websocket.close(code=1008, reason="Invalid token payload")
+                return
+        except Exception as e:
+            logger.error(f"Token validation failed: {e}")
+            await websocket.close(code=1008, reason="Token validation failed")
+            return
+        
+        # Accept the connection after authentication
         await websocket.accept()
         connection_id = str(uuid.uuid4())
         
+        # Create a default session if needed
+        session_id = f"session_{user_id}_{connection_id[:8]}"
+        
         # Send connection confirmation
         await websocket.send_text(json.dumps({
-            "type": "connection_established",
+            "type": "connection_established", 
             "session_id": session_id,
+            "user_id": user_id,
             "timestamp": datetime.utcnow().isoformat()
         }))
         
-        log_websocket_event(connection_id, "websocket_connected", session_id=session_id)
+        log_websocket_event(connection_id, "websocket_connected", session_id=session_id, user_id=user_id)
         
         # Handle incoming messages
         while True:
@@ -232,6 +261,16 @@ async def create_chat_session(
         db.commit()
         db.refresh(db_session)
         
+        # Publish chat session created event
+        try:
+            await publish_chat_event(str(db_session.id), "session_created", {
+                "user_id": current_user.id,
+                "title": db_session.title,
+                "tenant_id": db_session.tenant_id
+            })
+        except Exception as e:
+            logger.warning(f"Failed to publish chat session event: {e}")
+        
         # Create first message
         db_message = ChatMessage(
             content=session_data.message,
@@ -244,6 +283,17 @@ async def create_chat_session(
         db.add(db_message)
         db.commit()
         db.refresh(db_message)
+        
+        # Publish chat message event
+        try:
+            await publish_chat_event(str(db_session.id), "message_created", {
+                "message_id": db_message.id,
+                "user_id": current_user.id,
+                "message_type": db_message.message_type,
+                "role": db_message.role
+            })
+        except Exception as e:
+            logger.warning(f"Failed to publish chat message event: {e}")
         
         log_event("chat_session_created", session_id=db_session.id, user_id=current_user.id)
         

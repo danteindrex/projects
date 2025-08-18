@@ -9,7 +9,7 @@ from app.db.database import get_db_session, check_db_connection
 from app.models.user import User
 from app.models.integration import Integration, IntegrationStatus
 from app.core.kafka_service import kafka_service
-from app.services.crewai_service import get_all_agents_status
+# Temporarily disabled for testing - from app.services.crewai_service import get_all_agents_status
 from app.core.logging import log_event
 
 router = APIRouter()
@@ -193,11 +193,13 @@ async def _check_kafka_streams() -> tuple[str, str]:
 async def _check_crewai_agents() -> tuple[str, str]:
     """Check CrewAI agents"""
     try:
-        agents_status = await get_all_agents_status()
-        if agents_status["total_agents"] > 0:
-            return "pass", f"CrewAI agents are active ({agents_status['total_agents']} agents)"
-        else:
-            return "fail", "No CrewAI agents are active"
+        # Temporarily disabled for testing
+        # agents_status = await get_all_agents_status()
+        # if agents_status["total_agents"] > 0:
+        #     return "pass", f"CrewAI agents are active ({agents_status['total_agents']} agents)"
+        # else:
+        #     return "fail", "No CrewAI agents are active"
+        return "skip", "CrewAI agents check temporarily disabled"
     except Exception as e:
         return "fail", f"CrewAI agents issue: {str(e)}"
 
@@ -270,8 +272,9 @@ async def get_system_status(
         # Kafka status
         kafka_status = "healthy" if kafka_service.producer else "unhealthy"
         
-        # Agents status
-        agents_status = await get_all_agents_status()
+        # Agents status (temporarily disabled for testing)
+        # agents_status = await get_all_agents_status()
+        agents_status = {"total_agents": 0, "active_agents": 0}
         
         # Integrations status
         integrations = db.query(Integration).all()

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, JSON, ForeignKey, Integer, DateTime
+from sqlalchemy import Column, String, Text, JSON, ForeignKey, Integer, DateTime, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .base import TenantModel
@@ -11,7 +11,7 @@ class ChatSession(TenantModel):
     status = Column(String(50), default="active")  # active, closed, archived
     
     # Session metadata
-    metadata = Column(JSON, default={})
+    session_metadata = Column(JSON, default={})
     total_messages = Column(Integer, default=0)
     last_activity = Column(DateTime(timezone=True), onupdate=func.now())
     
@@ -19,6 +19,13 @@ class ChatSession(TenantModel):
     user_id = Column(Integer, ForeignKey("users.id"))
     user = relationship("User", back_populates="chat_sessions")
     messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
+    
+    # Define indexes for better query performance
+    __table_args__ = (
+        Index('idx_chat_session_user_status', 'user_id', 'status'),
+        Index('idx_chat_session_tenant_activity', 'tenant_id', 'last_activity'),
+        Index('idx_chat_session_status_created', 'status', 'created_at'),
+    )
     
     def __repr__(self):
         return f"<ChatSession {self.id} ({self.status})>"
@@ -32,7 +39,7 @@ class ChatMessage(TenantModel):
     role = Column(String(50), nullable=False)  # user, assistant, system
     
     # Message metadata
-    metadata = Column(JSON, default={})
+    message_metadata = Column(JSON, default={})
     tokens_used = Column(Integer, default=0)
     processing_time = Column(Integer, default=0)  # milliseconds
     
@@ -45,6 +52,14 @@ class ChatMessage(TenantModel):
     # Relationships
     session_id = Column(Integer, ForeignKey("chat_sessions.id"))
     session = relationship("ChatSession", back_populates="messages")
+    
+    # Define indexes for better query performance
+    __table_args__ = (
+        Index('idx_chat_message_session_created', 'session_id', 'created_at'),
+        Index('idx_chat_message_tenant_session', 'tenant_id', 'session_id'),
+        Index('idx_chat_message_type_role', 'message_type', 'role'),
+        Index('idx_chat_message_tool_status', 'tool_status', 'created_at'),
+    )
     
     def __repr__(self):
         return f"<ChatMessage {self.id} ({self.message_type})>"

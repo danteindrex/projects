@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from datetime import timedelta
+from datetime import timedelta, datetime
 from app.core.security import (
     get_password_hash, 
     verify_password, 
@@ -53,9 +53,12 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db_session))
             username=db_user.username,
             full_name=db_user.full_name,
             role=db_user.role,
-            is_verified=db_user.is_verified
+            is_verified=db_user.is_verified,
+            is_active=db_user.is_active
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         log_event("user_registration_failed", error=str(e), email=user_data.email)
@@ -97,7 +100,7 @@ async def login(
         )
         
         # Update last login
-        user.last_login = str(timedelta)
+        user.last_login = datetime.utcnow()
         db.commit()
         
         log_event("user_login", user_id=user.id, username=user.username)
@@ -128,7 +131,8 @@ async def get_current_user_info(
         username=current_user.username,
         full_name=current_user.full_name,
         role=current_user.role,
-        is_verified=current_user.is_verified
+        is_verified=current_user.is_verified,
+        is_active=current_user.is_active
     )
 
 @router.post("/refresh", response_model=Token)

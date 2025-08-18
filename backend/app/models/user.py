@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, Enum
+from sqlalchemy import Column, String, Boolean, Enum, Index
 from sqlalchemy.orm import relationship
 import enum
 from .base import BaseModel
@@ -23,6 +23,12 @@ class User(BaseModel):
     # Relationships
     integrations = relationship("Integration", back_populates="owner")
     chat_sessions = relationship("ChatSession", back_populates="user")
+    
+    # Define indexes for better query performance
+    __table_args__ = (
+        Index('idx_users_role_active', 'role', 'is_active'),
+        Index('idx_users_created_active', 'created_at', 'is_active'),
+    )
     
     def __repr__(self):
         return f"<User {self.email}>"

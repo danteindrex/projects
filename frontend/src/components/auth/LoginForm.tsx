@@ -2,13 +2,14 @@
 
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import Link from 'next/link';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/Button';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
 const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
+  username: z.string().min(1, 'Username or email is required'),
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -49,25 +50,32 @@ export default function LoginForm({ onSubmit, isLoading = false, error }: LoginF
         <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-md p-4">
-              <p className="text-sm text-red-600">{error}</p>
+              <div className="flex">
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">Sign-in Error</h3>
+                  <div className="mt-2 text-sm text-red-700">
+                    <p>{error}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-neutral-700 mb-2">
-              Email address
+            <label htmlFor="username" className="block text-sm font-medium text-neutral-700 mb-2">
+              Username or Email
             </label>
             <input
-              {...register('email')}
-              type="email"
-              id="email"
+              {...register('username')}
+              type="text"
+              id="username"
               className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                errors.email ? 'border-red-300' : 'border-neutral-300'
+                errors.username ? 'border-red-300' : 'border-neutral-300'
               }`}
-              placeholder="Enter your email"
+              placeholder="Enter your username or email"
             />
-            {errors.email && (
-              <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+            {errors.username && (
+              <p className="mt-1 text-sm text-red-600">{errors.username.message}</p>
             )}
           </div>
 
@@ -114,17 +122,17 @@ export default function LoginForm({ onSubmit, isLoading = false, error }: LoginF
                 Remember me
               </label>
             </div>
-            <a
-              href="#"
+            <Link
+              href="/forgot-password"
               className="text-sm text-primary-600 hover:text-primary-500"
             >
               Forgot password?
-            </a>
+            </Link>
           </div>
 
           <Button
             type="submit"
-            className="w-full"
+            className="w-full bg-primary-600 text-black hover:bg-primary-700 disabled:opacity-50"
             loading={isLoading}
             disabled={isLoading}
           >
@@ -134,10 +142,10 @@ export default function LoginForm({ onSubmit, isLoading = false, error }: LoginF
 
         <div className="mt-6 text-center">
           <p className="text-sm text-neutral-600">
-            Don't have an account?{' '}
-            <a href="/register" className="font-medium text-primary-600 hover:text-primary-500">
+            Don&apos;t have an account?{' '}
+            <Link href="/register" className="font-medium text-primary-600 hover:text-primary-500">
               Sign up
-            </a>
+            </Link>
           </p>
         </div>
       </div>
