@@ -114,7 +114,11 @@
 - [x] UI/UX review completed (accessibility features added)
 - [x] Documentation reviewed (comprehensive docs created)
 - [x] Ready for production deployment
-
+## issues
+[ ]kafka not working
+[ ] unfinished intergration of the UI
+[ ]intergration tests for the system
+[ ]adding real API endpoints for the intergrations
 ---
 
 **Total Items: 75**
