@@ -38,13 +38,13 @@ export default function LoginForm({ onSubmit, isLoading = false, error }: LoginF
 
   return (
     <div className="w-full max-w-md mx-auto">
-      <div className="bg-white py-8 px-6 shadow-soft rounded-lg border border-neutral-200">
+      <div className="bg-white/20 backdrop-blur-md py-8 px-6 shadow-soft rounded-lg">
         <div className="text-center mb-8">
           <div className="mx-auto h-12 w-12 bg-gradient-to-br from-primary-500 to-teal-500 rounded-lg flex items-center justify-center mb-4">
             <span className="text-white font-bold text-xl">BS</span>
           </div>
-          <h2 className="text-2xl font-bold text-neutral-900">Welcome back</h2>
-          <p className="text-neutral-600 mt-2">Sign in to your account</p>
+          <h2 className="text-2xl font-bold text-white">Welcome back</h2>
+          <p className="text-white mt-2">Sign in to your account</p>
         </div>
 
         <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
@@ -62,7 +62,7 @@ export default function LoginForm({ onSubmit, isLoading = false, error }: LoginF
           )}
 
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-neutral-700 mb-2">
+            <label htmlFor="username" className="block text-sm font-medium text-white mb-2">
               Username or Email
             </label>
             <input
@@ -80,7 +80,7 @@ export default function LoginForm({ onSubmit, isLoading = false, error }: LoginF
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-neutral-700 mb-2">
+            <label htmlFor="password" className="block text-sm font-medium text-white mb-2">
               Password
             </label>
             <div className="relative">
@@ -118,7 +118,7 @@ export default function LoginForm({ onSubmit, isLoading = false, error }: LoginF
                 type="checkbox"
                 className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-neutral-300 rounded"
               />
-              <label htmlFor="remember-me" className="ml-2 block text-sm text-neutral-700">
+              <label htmlFor="remember-me" className="ml-2 block text-sm text-white">
                 Remember me
               </label>
             </div>
@@ -132,7 +132,7 @@ export default function LoginForm({ onSubmit, isLoading = false, error }: LoginF
 
           <Button
             type="submit"
-            className="w-full bg-primary-600 text-black hover:bg-primary-700 disabled:opacity-50"
+            className="w-full"
             loading={isLoading}
             disabled={isLoading}
           >
@@ -141,9 +141,9 @@ export default function LoginForm({ onSubmit, isLoading = false, error }: LoginF
         </form>
 
         <div className="mt-6 text-center">
-          <p className="text-sm text-neutral-600">
+          <p className="text-sm text-white">
             Don&apos;t have an account?{' '}
-            <Link href="/register" className="font-medium text-primary-600 hover:text-primary-500">
+            <Link href="/register" className="font-medium text-primary-300 hover:text-primary-200">
               Sign up
             </Link>
           </p>

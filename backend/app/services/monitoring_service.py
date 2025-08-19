@@ -129,10 +129,10 @@ class HealthChecker:
         """Check database connectivity and performance"""
         start_time = time.time()
         try:
-            from app.db.database import get_db_session
+            from app.db.database import get_db
             
             # Simple query to test database
-            with get_db_session() as db:
+            with get_db() as db:
                 result = db.execute(text("SELECT 1")).fetchone()
                 if not result:
                     raise Exception("Database query failed")

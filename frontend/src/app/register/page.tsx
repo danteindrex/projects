@@ -54,15 +54,23 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-primary-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div 
+      className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8"
+      style={{
+        backgroundImage: 'url(/bg.jpg)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }}
+    >
       <div className="w-full max-w-md mx-auto">
-        <div className="bg-white py-8 px-6 shadow-soft rounded-lg border border-neutral-200">
+        <div className="bg-white/20 backdrop-blur-md py-8 px-6 shadow-soft rounded-lg">
           <div className="text-center mb-8">
             <div className="mx-auto h-12 w-12 bg-gradient-to-br from-primary-500 to-teal-500 rounded-lg flex items-center justify-center mb-4">
               <span className="text-white font-bold text-xl">BS</span>
             </div>
-            <h2 className="text-2xl font-bold text-neutral-900">Create account</h2>
-            <p className="text-neutral-600 mt-2">Get started with your free account</p>
+            <h2 className="text-2xl font-bold text-white">Create account</h2>
+            <p className="text-white mt-2">Get started with your free account</p>
           </div>
 
           <form onSubmit={handleSubmit(handleRegister)} className="space-y-6">
@@ -80,7 +88,7 @@ export default function RegisterPage() {
             )}
 
             <div>
-              <label htmlFor="full_name" className="block text-sm font-medium text-neutral-700 mb-2">
+              <label htmlFor="full_name" className="block text-sm font-medium text-white mb-2">
                 Full Name
               </label>
               <input
@@ -98,7 +106,7 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-neutral-700 mb-2">
+              <label htmlFor="username" className="block text-sm font-medium text-white mb-2">
                 Username
               </label>
               <input
@@ -116,7 +124,7 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-neutral-700 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium text-white mb-2">
                 Email Address
               </label>
               <input
@@ -134,7 +142,7 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-neutral-700 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-white mb-2">
                 Password
               </label>
               <div className="relative">
@@ -175,9 +183,9 @@ export default function RegisterPage() {
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-sm text-neutral-600">
+            <p className="text-sm text-white">
               Already have an account?{' '}
-              <Link href="/login" className="font-medium text-primary-600 hover:text-primary-500">
+              <Link href="/login" className="font-medium text-primary-300 hover:text-primary-200">
                 Sign in
               </Link>
             </p>

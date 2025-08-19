@@ -1,20 +1,28 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import SystemHealthDashboard from '@/components/monitoring/SystemHealthDashboard';
+import IntegrationMonitoringPanel from '@/components/monitoring/IntegrationMonitoringPanel';
+import RealTimeActivityFeed from '@/components/monitoring/RealTimeActivityFeed';
+import AlertsNotifications from '@/components/monitoring/AlertsNotifications';
+import KafkaMonitoringWidget from '@/components/monitoring/KafkaMonitoringWidget';
 import { 
   ChartBarIcon, 
   ArrowTrendingUpIcon,
   ClockIcon,
   ExclamationTriangleIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  Cog6ToothIcon,
+  EyeIcon
 } from '@heroicons/react/24/outline';
 
 export default function AnalyticsPage() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<'overview' | 'integrations' | 'realtime' | 'alerts' | 'kafka'>('overview');
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -37,64 +45,12 @@ export default function AnalyticsPage() {
     return <div>Redirecting to login...</div>;
   }
 
-  // Mock analytics data
-  const analyticsData = [
-    {
-      title: 'Integration Performance',
-      value: '98.5%',
-      change: '+2.1%',
-      trend: 'up',
-      icon: ChartBarIcon,
-      color: 'green'
-    },
-    {
-      title: 'API Calls Today',
-      value: '1,247',
-      change: '+15%',
-      trend: 'up',
-      icon: ArrowTrendingUpIcon,
-      color: 'blue'
-    },
-    {
-      title: 'Average Response Time',
-      value: '245ms',
-      change: '-12ms',
-      trend: 'down',
-      icon: ClockIcon,
-      color: 'yellow'
-    },
-    {
-      title: 'Active Connections',
-      value: '12',
-      change: '+2',
-      trend: 'up',
-      icon: CheckCircleIcon,
-      color: 'green'
-    }
-  ];
-
-  const recentAlerts = [
-    {
-      id: 1,
-      type: 'warning',
-      message: 'Zendesk API response time increased',
-      time: '5 minutes ago',
-      status: 'active'
-    },
-    {
-      id: 2,
-      type: 'success',
-      message: 'Jira integration health check passed',
-      time: '15 minutes ago',
-      status: 'resolved'
-    },
-    {
-      id: 3,
-      type: 'info',
-      message: 'New integration added: GitHub',
-      time: '1 hour ago',
-      status: 'info'
-    }
+  const tabs = [
+    { id: 'overview', name: 'System Health', icon: ChartBarIcon },
+    { id: 'integrations', name: 'Integrations', icon: Cog6ToothIcon },
+    { id: 'realtime', name: 'Live Activity', icon: EyeIcon },
+    { id: 'alerts', name: 'Alerts', icon: ExclamationTriangleIcon },
+    { id: 'kafka', name: 'Kafka', icon: ArrowTrendingUpIcon }
   ];
 
   return (
@@ -102,116 +58,115 @@ export default function AnalyticsPage() {
       <div className="space-y-6">
         {/* Page header */}
         <div className="bg-white rounded-lg border border-neutral-200 p-6">
-          <h1 className="text-2xl font-bold text-neutral-900">Analytics Dashboard</h1>
+          <h1 className="text-2xl font-bold text-neutral-900">Analytics & Monitoring Dashboard</h1>
           <p className="mt-2 text-sm text-neutral-600">
-            Monitor your integrations performance and system health in real-time.
+            Monitor your integrations performance, system health, and real-time activity across all business systems.
           </p>
         </div>
 
-        {/* Metrics grid */}
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {analyticsData.map((metric) => (
-            <div
-              key={metric.title}
-              className="bg-white overflow-hidden rounded-lg border border-neutral-200 p-6"
-            >
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <metric.icon 
-                    className={`h-8 w-8 ${
-                      metric.color === 'green' ? 'text-green-600' :
-                      metric.color === 'blue' ? 'text-blue-600' :
-                      metric.color === 'yellow' ? 'text-yellow-600' : 'text-neutral-600'
-                    }`} 
-                  />
-                </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-neutral-500 truncate">
-                      {metric.title}
-                    </dt>
-                    <dd className="flex items-baseline">
-                      <div className="text-2xl font-semibold text-neutral-900">
-                        {metric.value}
-                      </div>
-                      <div className={`ml-2 flex items-baseline text-sm font-semibold ${
-                        metric.trend === 'up' ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {metric.change}
-                      </div>
-                    </dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Charts section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Performance Chart */}
-          <div className="bg-white rounded-lg border border-neutral-200 p-6">
-            <h3 className="text-lg font-medium text-neutral-900 mb-4">
-              Integration Performance (24h)
-            </h3>
-            <div className="h-64 flex items-center justify-center bg-neutral-50 rounded-lg">
-              <div className="text-center text-neutral-500">
-                <ChartBarIcon className="h-12 w-12 mx-auto mb-2" />
-                <p>Chart visualization would appear here</p>
-                <p className="text-sm">Connect to real analytics service</p>
-              </div>
-            </div>
+        {/* Navigation Tabs */}
+        <div className="bg-white rounded-lg border border-neutral-200">
+          <div className="border-b border-neutral-200">
+            <nav className="-mb-px flex space-x-8 px-6" aria-label="Tabs">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`${
+                    activeTab === tab.id
+                      ? 'border-primary-500 text-primary-600'
+                      : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300'
+                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
+                >
+                  <tab.icon className="h-5 w-5" />
+                  <span>{tab.name}</span>
+                </button>
+              ))}
+            </nav>
           </div>
 
-          {/* API Usage Chart */}
-          <div className="bg-white rounded-lg border border-neutral-200 p-6">
-            <h3 className="text-lg font-medium text-neutral-900 mb-4">
-              API Usage Trends
-            </h3>
-            <div className="h-64 flex items-center justify-center bg-neutral-50 rounded-lg">
-              <div className="text-center text-neutral-500">
-                <ArrowTrendingUpIcon className="h-12 w-12 mx-auto mb-2" />
-                <p>Usage trends would appear here</p>
-                <p className="text-sm">Real-time data visualization</p>
+          {/* Tab Content */}
+          <div className="p-6">
+            {activeTab === 'overview' && (
+              <div className="space-y-6">
+                <SystemHealthDashboard />
+                
+                {/* Note: Quick stats will be populated from real system data via SystemHealthDashboard */}
               </div>
-            </div>
+            )}
+
+            {activeTab === 'integrations' && (
+              <IntegrationMonitoringPanel />
+            )}
+
+            {activeTab === 'realtime' && (
+              <RealTimeActivityFeed />
+            )}
+
+            {activeTab === 'alerts' && (
+              <AlertsNotifications />
+            )}
+
+            {activeTab === 'kafka' && (
+              <KafkaMonitoringWidget />
+            )}
           </div>
         </div>
 
-        {/* Recent alerts */}
-        <div className="bg-white rounded-lg border border-neutral-200 p-6">
-          <h3 className="text-lg font-medium text-neutral-900 mb-4">
-            Recent Alerts & Events
-          </h3>
-          <div className="space-y-4">
-            {recentAlerts.map((alert) => (
-              <div key={alert.id} className="flex items-center space-x-3 p-3 bg-neutral-50 rounded-lg">
-                <div>
-                  {alert.type === 'warning' && (
-                    <ExclamationTriangleIcon className="h-6 w-6 text-yellow-500" />
-                  )}
-                  {alert.type === 'success' && (
-                    <CheckCircleIcon className="h-6 w-6 text-green-500" />
-                  )}
-                  {alert.type === 'info' && (
-                    <ChartBarIcon className="h-6 w-6 text-blue-500" />
-                  )}
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-neutral-900">{alert.message}</p>
-                  <p className="text-xs text-neutral-500">{alert.time}</p>
-                </div>
-                <div>
-                  <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                    alert.status === 'active' ? 'bg-yellow-100 text-yellow-800' :
-                    alert.status === 'resolved' ? 'bg-green-100 text-green-800' :
-                    'bg-blue-100 text-blue-800'
-                  }`}>
-                    {alert.status}
-                  </span>
-                </div>
+        {/* Additional Information Panel */}
+        <div className="bg-gradient-to-r from-primary-50 to-primary-100 rounded-lg border border-primary-200 p-6">
+          <div className="flex items-center space-x-3 mb-4">
+            <ChartBarIcon className="h-6 w-6 text-primary-600" />
+            <h3 className="text-lg font-medium text-primary-900">Monitoring Information</h3>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-sm">
+            <div>
+              <h4 className="font-medium text-primary-900 mb-2">System Health</h4>
+              <ul className="space-y-1 text-primary-700">
+                <li>• Real-time system resource monitoring</li>
+                <li>• Component health status tracking</li>
+                <li>• Automated alert generation</li>
+                <li>• Performance metrics collection</li>
+              </ul>
+            </div>
+            
+            <div>
+              <h4 className="font-medium text-primary-900 mb-2">Integration Monitoring</h4>
+              <ul className="space-y-1 text-primary-700">
+                <li>• API call success/failure tracking</li>
+                <li>• Response time monitoring</li>
+                <li>• Rate limit detection</li>
+                <li>• Authentication status checks</li>
+              </ul>
+            </div>
+            
+            <div>
+              <h4 className="font-medium text-primary-900 mb-2">Real-time Events</h4>
+              <ul className="space-y-1 text-primary-700">
+                <li>• Live WebSocket event streaming</li>
+                <li>• Kafka message broker integration</li>
+                <li>• Event filtering and search</li>
+                <li>• Historical event tracking</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="mt-6 pt-4 border-t border-primary-200">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-primary-700">
+                All monitoring data is updated in real-time and stored for historical analysis.
+              </p>
+              <div className="flex items-center space-x-4 text-xs text-primary-600">
+                <a href="http://localhost:8001/docs" target="_blank" rel="noopener noreferrer" className="hover:underline">
+                  API Documentation
+                </a>
+                <span>•</span>
+                <a href="http://localhost:8080" target="_blank" rel="noopener noreferrer" className="hover:underline">
+                  Kafka UI
+                </a>
               </div>
-            ))}
+            </div>
           </div>
         </div>
       </div>

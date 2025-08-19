@@ -1,1029 +1,784 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/Button';
-import { apiClient } from '@/lib/api';
+import { apiClient, IntegrationTemplate, OAuthSupport } from '@/lib/api';
+import { INTEGRATION_CATEGORIES } from '@/lib/integrationTypes';
 import { 
   PuzzlePieceIcon, 
   CheckCircleIcon,
   ExclamationTriangleIcon,
   ArrowRightIcon,
-  ArrowLeftIcon
+  ArrowLeftIcon,
+  XMarkIcon,
+  CloudIcon,
+  SparklesIcon
 } from '@heroicons/react/24/outline';
 
 const integrationSchema = z.object({
   name: z.string().min(2, 'Integration name must be at least 2 characters'),
   description: z.string().optional(),
-  integration_type: z.enum([
-    'jira', 'asana', 'trello', 'zendesk', 'freshdesk', 'salesforce', 'hubspot', 
-    'github', 'gitlab', 'slack', 'aws', 'azure', 'google_analytics', 'custom'
-  ]),
-  base_url: z.string().url('Please enter a valid URL').optional(),
-  api_key: z.string().min(1, 'API key is required'),
-  username: z.string().optional(),
-  password: z.string().optional(),
-  api_token: z.string().optional(),
-  access_key: z.string().optional(),
-  secret_key: z.string().optional(),
-  client_id: z.string().optional(),
-  client_secret: z.string().optional(),
-  tenant_id: z.string().optional(),
-  subscription_id: z.string().optional(),
-  region: z.string().optional(),
-  refresh_token: z.string().optional(),
-  config: z.record(z.any()).optional(),
-  monitoring_preferences: z.array(z.string()).optional(),
+  integration_type: z.string().min(1, 'Please select an integration type'),
+  base_url: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
+  // Dynamic credentials based on template
+  credentials: z.record(z.string()).optional(),
 });
 
 type IntegrationFormData = z.infer<typeof integrationSchema>;
 
-interface IntegrationTemplate {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  fields: string[];
-  config: {
-    category: string;
-    monitoring: string[];
-    endpoints: Record<string, any>;
-  };
-}
-
-const integrationTemplates: IntegrationTemplate[] = [
-  // Project Management
-  {
-    id: 'jira',
-    name: 'Jira',
-    description: 'Track issues, projects, and team performance',
-    icon: '🎯',
-    fields: ['base_url', 'api_key', 'username'],
-    config: {
-      category: 'project_management',
-      monitoring: ['issue_count', 'project_status', 'sprint_progress'],
-      endpoints: {
-        issues: '/rest/api/2/issue',
-        projects: '/rest/api/2/project',
-        users: '/rest/api/2/user'
-      }
-    }
-  },
-  {
-    id: 'asana',
-    name: 'Asana',
-    description: 'Monitor tasks, projects, and team productivity',
-    icon: '📋',
-    fields: ['api_key'],
-    config: {
-      category: 'project_management',
-      monitoring: ['task_completion', 'project_timeline', 'team_workload'],
-      endpoints: {
-        tasks: '/api/1.0/tasks',
-        projects: '/api/1.0/projects'
-      }
-    }
-  },
-  {
-    id: 'trello',
-    name: 'Trello',
-    description: 'Track boards, cards, and workflow progress',
-    icon: '📊',
-    fields: ['api_key', 'api_token'],
-    config: {
-      category: 'project_management',
-      monitoring: ['board_activity', 'card_movement', 'due_dates'],
-      endpoints: {
-        boards: '/1/members/me/boards',
-        cards: '/1/boards/{id}/cards'
-      }
-    }
-  },
-  
-  // Customer Support
-  {
-    id: 'zendesk',
-    name: 'Zendesk',
-    description: 'Monitor tickets, customer satisfaction, and support metrics',
-    icon: '🎫',
-    fields: ['base_url', 'api_key', 'username'],
-    config: {
-      category: 'customer_support',
-      monitoring: ['ticket_volume', 'response_time', 'satisfaction_score'],
-      endpoints: {
-        tickets: '/api/v2/tickets',
-        users: '/api/v2/users',
-        organizations: '/api/v2/organizations'
-      }
-    }
-  },
-  {
-    id: 'freshdesk',
-    name: 'Freshdesk',
-    description: 'Track support tickets and team performance',
-    icon: '🆘',
-    fields: ['base_url', 'api_key'],
-    config: {
-      category: 'customer_support',
-      monitoring: ['ticket_status', 'agent_performance', 'sla_compliance'],
-      endpoints: {
-        tickets: '/api/v2/tickets',
-        agents: '/api/v2/agents'
-      }
-    }
-  },
-  
-  // CRM Systems
-  {
-    id: 'salesforce',
-    name: 'Salesforce',
-    description: 'Monitor sales pipeline, leads, and revenue metrics',
-    icon: '☁️',
-    fields: ['base_url', 'api_key', 'username', 'password'],
-    config: {
-      category: 'crm',
-      monitoring: ['pipeline_health', 'lead_conversion', 'revenue_forecast'],
-      endpoints: {
-        leads: '/services/data/v52.0/sobjects/Lead',
-        contacts: '/services/data/v52.0/sobjects/Contact',
-        opportunities: '/services/data/v52.0/sobjects/Opportunity'
-      }
-    }
-  },
-  {
-    id: 'hubspot',
-    name: 'HubSpot',
-    description: 'Track contacts, deals, and marketing campaigns',
-    icon: '🔶',
-    fields: ['api_key'],
-    config: {
-      category: 'crm',
-      monitoring: ['deal_stage', 'contact_engagement', 'campaign_performance'],
-      endpoints: {
-        contacts: '/crm/v3/objects/contacts',
-        deals: '/crm/v3/objects/deals'
-      }
-    }
-  },
-  
-  // Development Tools
-  {
-    id: 'github',
-    name: 'GitHub',
-    description: 'Monitor repositories, issues, and development metrics',
-    icon: '🐙',
-    fields: ['api_key'],
-    config: {
-      category: 'development',
-      monitoring: ['commit_frequency', 'pull_request_status', 'issue_resolution'],
-      endpoints: {
-        repos: '/user/repos',
-        issues: '/repos/{owner}/{repo}/issues',
-        pull_requests: '/repos/{owner}/{repo}/pulls'
-      }
-    }
-  },
-  {
-    id: 'gitlab',
-    name: 'GitLab',
-    description: 'Track projects, pipelines, and code quality',
-    icon: '🦊',
-    fields: ['base_url', 'api_key'],
-    config: {
-      category: 'development',
-      monitoring: ['pipeline_success', 'merge_requests', 'code_coverage'],
-      endpoints: {
-        projects: '/api/v4/projects',
-        pipelines: '/api/v4/projects/{id}/pipelines'
-      }
-    }
-  },
-  
-  // Communication
-  {
-    id: 'slack',
-    name: 'Slack',
-    description: 'Monitor team communication and activity',
-    icon: '💬',
-    fields: ['api_key'],
-    config: {
-      category: 'communication',
-      monitoring: ['message_volume', 'active_users', 'response_time'],
-      endpoints: {
-        conversations: '/api/conversations.list',
-        users: '/api/users.list'
-      }
-    }
-  },
-  
-  // Cloud Platforms
-  {
-    id: 'aws',
-    name: 'AWS',
-    description: 'Monitor cloud resources, costs, and performance',
-    icon: '☁️',
-    fields: ['access_key', 'secret_key', 'region'],
-    config: {
-      category: 'cloud_platform',
-      monitoring: ['resource_utilization', 'cost_tracking', 'service_health'],
-      endpoints: {
-        ec2: 'ec2.{region}.amazonaws.com',
-        cloudwatch: 'monitoring.{region}.amazonaws.com'
-      }
-    }
-  },
-  {
-    id: 'azure',
-    name: 'Azure',
-    description: 'Track Azure resources and service metrics',
-    icon: '🔷',
-    fields: ['subscription_id', 'client_id', 'client_secret', 'tenant_id'],
-    config: {
-      category: 'cloud_platform',
-      monitoring: ['vm_performance', 'storage_usage', 'cost_analysis'],
-      endpoints: {
-        resources: 'management.azure.com',
-        monitor: 'monitor.azure.com'
-      }
-    }
-  },
-  
-  // Analytics
-  {
-    id: 'google_analytics',
-    name: 'Google Analytics',
-    description: 'Monitor website traffic and user behavior',
-    icon: '📈',
-    fields: ['client_id', 'client_secret', 'refresh_token'],
-    config: {
-      category: 'analytics',
-      monitoring: ['page_views', 'user_sessions', 'conversion_rate'],
-      endpoints: {
-        reports: 'analyticsreporting.googleapis.com/v4/reports:batchGet'
-      }
-    }
-  },
-  
-  // Custom Integration
-  {
-    id: 'custom',
-    name: 'Custom System',
-    description: 'Connect to any custom API or system you want to monitor',
-    icon: '🔧',
-    fields: ['base_url', 'api_key'],
-    config: {
-      category: 'custom',
-      monitoring: ['custom_metrics', 'system_health', 'data_quality'],
-      endpoints: {}
-    }
-  }
-];
-
 interface IntegrationWizardProps {
-  onComplete: (data: IntegrationFormData) => void;
+  onComplete: (integration: any) => void;
   onCancel: () => void;
 }
 
 export default function IntegrationWizard({ onComplete, onCancel }: IntegrationWizardProps) {
   const [currentStep, setCurrentStep] = useState(1);
+  const [templates, setTemplates] = useState<Record<string, IntegrationTemplate>>({});
+  const [templatesLoading, setTemplatesLoading] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState<IntegrationTemplate | null>(null);
+  const [oauthSupport, setOAuthSupport] = useState<Record<string, OAuthSupport>>({});
+  const [authMethod, setAuthMethod] = useState<'credentials' | 'oauth'>('credentials');
+  const [scopes, setScopes] = useState<string[]>([]);
+  const [availableScopes, setAvailableScopes] = useState<string[]>([]);
   const [isTesting, setIsTesting] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
     register,
     handleSubmit,
+    formState: { errors },
     watch,
     setValue,
-    formState: { errors, isValid },
+    reset
   } = useForm<IntegrationFormData>({
     resolver: zodResolver(integrationSchema),
     mode: 'onChange',
   });
 
-  const watchedType = watch('integration_type');
+  useEffect(() => {
+    fetchTemplates();
+  }, []);
 
-  const handleTemplateSelect = (template: IntegrationTemplate) => {
+  const fetchTemplates = async () => {
+    try {
+      setTemplatesLoading(true);
+      setError(null);
+      
+      const response = await apiClient.getIntegrationTemplates();
+      // Handle both possible response formats
+      const templateData = response.templates || response;
+      
+      // Convert to the format expected by the frontend
+      const processedTemplates: Record<string, IntegrationTemplate> = {};
+      
+      Object.entries(templateData).forEach(([key, template]: [string, any]) => {
+        const processedTemplate: IntegrationTemplate = {
+          id: key.toLowerCase(),
+          name: template.name,
+          description: template.description,
+          category: getCategoryFromType(key.toLowerCase()),
+          integration_type: key.toLowerCase(),
+          icon: getIconForType(key.toLowerCase()),
+          config: {
+            endpoints: template.endpoints || {},
+            required_credentials: template.required_credentials || [],
+            optional_credentials: template.optional_credentials || [],
+            default_settings: template.default_settings || {},
+            capabilities: template.capabilities || [],
+          },
+          fields: template.required_credentials || [],
+          documentation_url: template.documentation,
+          setup_instructions: template.setup_instructions || []
+        };
+        processedTemplates[key.toLowerCase()] = processedTemplate;
+      });
+      
+      setTemplates(processedTemplates);
+    } catch (err) {
+      console.error('Error fetching templates:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load integration templates');
+    } finally {
+      setTemplatesLoading(false);
+    }
+  };
+
+  const getCategoryFromType = (type: string): string => {
+    // Find which category this type belongs to
+    for (const [category, types] of Object.entries(INTEGRATION_CATEGORIES)) {
+      if (types.includes(type as any)) {
+        return category;
+      }
+    }
+    return 'other';
+  };
+
+  const getIconForType = (type: string): string => {
+    const iconMap: Record<string, string> = {
+      jira: '🎯', asana: '📋', trello: '📊', monday: '📅',
+      zendesk: '🎫', freshdesk: '🆘',
+      salesforce: '☁️', hubspot: '🧲',
+      github: '🐙', gitlab: '🦊',
+      slack: '💬',
+      aws: '☁️', azure: '🔵',
+      google_analytics: '📊',
+      custom: '⚙️'
+    };
+    return iconMap[type] || '⚙️';
+  };
+
+  const handleTemplateSelect = async (template: IntegrationTemplate) => {
     setSelectedTemplate(template);
-    setValue('integration_type', template.id as any);
-    setValue('config', template.config);
+    setValue('integration_type', template.integration_type);
+    
+    // Fetch OAuth support information
+    try {
+      const [oauthSupportData, scopesData] = await Promise.allSettled([
+        apiClient.getOAuthSupport(template.integration_type),
+        apiClient.getOAuthScopes(template.integration_type).catch(() => ({ available_scopes: [], default_scopes: [] }))
+      ]);
+      
+      if (oauthSupportData.status === 'fulfilled') {
+        setOAuthSupport(prev => ({
+          ...prev,
+          [template.integration_type]: oauthSupportData.value
+        }));
+        
+        // Set default auth method based on OAuth support
+        if (oauthSupportData.value.supports_oauth) {
+          setAuthMethod('oauth');
+        } else {
+          setAuthMethod('credentials');
+        }
+      }
+      
+      if (scopesData.status === 'fulfilled') {
+        setAvailableScopes(scopesData.value.available_scopes || []);
+        setScopes(scopesData.value.default_scopes || []);
+      }
+    } catch (err) {
+      console.warn('Could not fetch OAuth support:', err);
+      setAuthMethod('credentials');
+    }
+    
     setCurrentStep(2);
   };
 
-  const handleTestConnection = async (data: IntegrationFormData) => {
-    setIsTesting(true);
-    setTestResult(null);
+  const handleCredentialSubmit = async (data: IntegrationFormData) => {
+    if (!selectedTemplate) return;
+
     setError(null);
-    
+    setIsTesting(true);
+
     try {
-      // Prepare credentials object
-      const credentials: Record<string, string> = {};
-      
-      // Build credentials object based on available fields
-      if (data.api_key) credentials.api_key = data.api_key;
-      if (data.username) credentials.username = data.username;
-      if (data.password) credentials.password = data.password;
-      if (data.api_token) credentials.api_token = data.api_token;
-      if (data.access_key) credentials.access_key = data.access_key;
-      if (data.secret_key) credentials.secret_key = data.secret_key;
-      if (data.client_id) credentials.client_id = data.client_id;
-      if (data.client_secret) credentials.client_secret = data.client_secret;
-      if (data.tenant_id) credentials.tenant_id = data.tenant_id;
-      if (data.subscription_id) credentials.subscription_id = data.subscription_id;
-      if (data.region) credentials.region = data.region;
-      if (data.refresh_token) credentials.refresh_token = data.refresh_token;
-
-      console.log('Creating integration with data:', {
-        name: data.name,
-        description: data.description,
-        integration_type: data.integration_type,
-        base_url: data.base_url,
-        credentials: Object.keys(credentials),
-        config: selectedTemplate?.config
-      });
-
-      // First create the integration
-      const integration = await apiClient.createIntegration({
-        name: data.name,
-        description: data.description,
-        integration_type: data.integration_type,
-        base_url: data.base_url || selectedTemplate?.config.endpoints?.base_url || `https://${data.integration_type}.api.com`,
-        credentials,
-        config: {
-          ...selectedTemplate?.config,
-          monitoring_preferences: data.monitoring_preferences || selectedTemplate?.config.monitoring
-        }
-      });
-
-      // Then test the connection
-      const testResult = await apiClient.testIntegration(integration.id);
-      
-      setTestResult({
-        success: testResult.success || true,
-        message: testResult.message || 'Connection successful! Integration is ready to use.'
-      });
-      
-      if (testResult.success !== false) {
-        setCurrentStep(4);
+      if (authMethod === 'oauth') {
+        // Handle OAuth flow
+        await handleOAuthFlow(data);
+      } else {
+        // Handle traditional credential flow
+        await handleCredentialFlow(data);
       }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An error occurred while testing the connection.';
-      console.error('Integration test failed:', error);
-      setError(errorMessage);
+    } catch (err) {
+      console.error('Integration creation failed:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create integration');
       setTestResult({
         success: false,
-        message: errorMessage
+        message: err instanceof Error ? err.message : 'Integration setup failed'
       });
     } finally {
       setIsTesting(false);
     }
   };
 
-  const handleFormSubmit = async (data: IntegrationFormData) => {
-    setError(null);
-    
-    try {
-      if (currentStep === 2) {
-        // Validate required fields before proceeding
-        if (!data.name?.trim()) {
-          setError('Integration name is required');
-          return;
-        }
-        if (!data.api_key?.trim()) {
-          setError('API key is required');
-          return;
-        }
-        setCurrentStep(3);
-      } else if (currentStep === 3) {
-        await handleTestConnection(data);
-      } else if (currentStep === 4) {
-        setIsSubmitting(true);
-        await onComplete(data);
+  const handleCredentialFlow = async (data: IntegrationFormData) => {
+    if (!selectedTemplate) return;
+
+    // Build credentials object from form data
+    const credentials: Record<string, string> = {};
+    selectedTemplate.config.required_credentials.forEach(field => {
+      const value = (data as any)[field];
+      if (value) {
+        credentials[field] = value;
       }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
-      console.error('Form submission error:', error);
-      setError(errorMessage);
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
+
+    // Create integration
+    const integration = await apiClient.createIntegration({
+      name: data.name,
+      description: data.description,
+      integration_type: data.integration_type,
+      base_url: data.base_url || undefined,
+      credentials,
+      config: selectedTemplate.config.default_settings || {},
+    });
+
+    // Test the integration
+    const testResponse = await apiClient.testIntegration(integration.id);
+    
+    setTestResult({
+      success: true,
+      message: 'Integration created and tested successfully!'
+    });
+    
+    setCurrentStep(3);
+    
+    // Complete after a short delay to show success
+    setTimeout(() => {
+      onComplete(integration);
+    }, 2000);
   };
 
-  const goBack = () => {
-    if (currentStep > 1) {
-      setError(null);
-      setTestResult(null);
-      setCurrentStep(currentStep - 1);
-    }
-  };
-  
-  const handleCancel = () => {
-    setError(null);
-    setTestResult(null);
-    onCancel();
-  };
+  const handleOAuthFlow = async (data: IntegrationFormData) => {
+    if (!selectedTemplate) return;
 
-  const renderStep1 = () => {
-    const categories = {
-      custom: { name: 'Custom Systems', icon: '🔧', color: 'orange' },
-      project_management: { name: 'Project Management', icon: '📋', color: 'blue' },
-      customer_support: { name: 'Customer Support', icon: '🎫', color: 'green' },
-      crm: { name: 'CRM & Sales', icon: '📈', color: 'purple' },
-      development: { name: 'Development', icon: '🐙', color: 'gray' },
-      communication: { name: 'Communication', icon: '💬', color: 'yellow' },
-      cloud_platform: { name: 'Cloud Platforms', icon: '☁️', color: 'indigo' },
-      analytics: { name: 'Analytics', icon: '📉', color: 'pink' }
+    // Get client credentials from form
+    const clientId = (data as any).client_id;
+    const clientSecret = (data as any).client_secret;
+
+    if (!clientId || !clientSecret) {
+      throw new Error('Client ID and Client Secret are required for OAuth');
+    }
+
+    // Store OAuth flow data in session for callback
+    const oauthData = {
+      integration_type: data.integration_type,
+      client_id: clientId,
+      client_secret: clientSecret,
+      name: data.name,
+      description: data.description,
+      config: selectedTemplate.config.default_settings || {}
     };
 
-    return (
-      <div className="space-y-6">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-neutral-900">Choose System to Monitor</h2>
-          <p className="text-neutral-600 mt-2">Connect your business systems for AI-powered monitoring and insights</p>
-        </div>
-        
-        {/* Custom System - Always show at top */}
-        <div className="space-y-3">
-          <div className="flex items-center space-x-2">
-            <span className="text-lg">🔧</span>
-            <h3 className="font-medium text-neutral-800">Custom Systems</h3>
-            <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full">Popular</span>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            <button
-              onClick={() => handleTemplateSelect(integrationTemplates.find(t => t.id === 'custom')!)}
-              className="p-6 border-2 border-green-200 bg-green-50 rounded-xl hover:border-green-300 hover:shadow-lg transition-all duration-300 text-left group relative overflow-hidden hover:bg-green-100/50"
-            >
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex items-center space-x-2">
-                  <span className="text-xl">🔧</span>
-                  <h4 className="font-semibold text-neutral-900 group-hover:text-green-700">Custom System</h4>
-                </div>
-              </div>
-              <p className="text-sm text-neutral-600 mb-3">Connect to any custom API or system you want to monitor</p>
-              
-              {/* Endpoint Requirements */}
-              <div className="mb-3">
-                <p className="text-xs font-semibold text-neutral-600 mb-2">📡 API Endpoints:</p>
-                <div className="bg-neutral-50 rounded-md p-2 text-xs text-neutral-700">
-                  <span className="text-neutral-500">Custom API endpoint required</span>
-                </div>
-              </div>
-              
-              {/* Monitoring Capabilities */}
-              <div className="mb-3">
-                <p className="text-xs font-semibold text-neutral-600 mb-2">📊 Monitors:</p>
-                <div className="flex flex-wrap gap-1">
-                  <span className="inline-flex px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 font-medium">custom metrics</span>
-                  <span className="inline-flex px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 font-medium">system health</span>
-                  <span className="inline-flex px-2 py-1 text-xs rounded-full bg-neutral-100 text-neutral-600">+1 more</span>
-                </div>
-              </div>
-            </button>
-          </div>
-        </div>
-        
-        {Object.entries(categories).map(([categoryKey, category]) => {
-          if (categoryKey === 'custom') return null; // Skip custom since we showed it above
-          const categoryTemplates = integrationTemplates.filter(t => t.config.category === categoryKey);
-          console.log(`Category: ${categoryKey}, Templates: ${categoryTemplates.length}`, categoryTemplates.map(t => t.name));
-          if (categoryTemplates.length === 0) return null;
-          
-          return (
-            <div key={categoryKey} className="space-y-3">
-              <div className="flex items-center space-x-2">
-                <span className="text-lg">{category.icon}</span>
-                <h3 className="font-medium text-neutral-800">{category.name}</h3>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {categoryTemplates.map((template) => (
-                  <button
-                    key={template.id}
-                    onClick={() => handleTemplateSelect(template)}
-                    className="p-6 border border-neutral-200 rounded-xl hover:border-green-300 hover:shadow-lg transition-all duration-300 text-left group relative overflow-hidden bg-white hover:bg-green-50/30"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xl">{template.icon}</span>
-                        <h4 className="font-semibold text-neutral-900 group-hover:text-green-700">{template.name}</h4>
-                      </div>
-                    </div>
-                    <p className="text-sm text-neutral-600 mb-3">{template.description}</p>
-                    
-                    {/* Endpoint Requirements */}
-                    <div className="mb-3">
-                      <p className="text-xs font-semibold text-neutral-600 mb-2">📡 API Endpoints:</p>
-                      <div className="bg-neutral-50 rounded-md p-2 text-xs text-neutral-700">
-                        {Object.entries(template.config.endpoints || {}).length > 0 ? (
-                          Object.entries(template.config.endpoints).map(([key, endpoint]) => (
-                            <div key={key} className="font-mono">
-                              <span className="text-green-600">{key}:</span> {endpoint as string}
-                            </div>
-                          ))
-                        ) : (
-                          <span className="text-neutral-500">Custom API endpoint required</span>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Monitoring Capabilities */}
-                    <div className="mb-3">
-                      <p className="text-xs font-semibold text-neutral-600 mb-2">📊 Monitors:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {template.config.monitoring?.slice(0, 2).map((metric, idx) => (
-                          <span key={idx} className="inline-flex px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 font-medium">
-                            {metric.replace('_', ' ')}
-                          </span>
-                        ))}
-                        {template.config.monitoring?.length > 2 && (
-                          <span className="inline-flex px-2 py-1 text-xs rounded-full bg-neutral-100 text-neutral-600">
-                            +{template.config.monitoring.length - 2} more
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
+    // Initiate OAuth flow
+    const authResponse = await apiClient.initiateOAuth({
+      integration_type: data.integration_type,
+      client_id: clientId,
+      scopes: scopes.length > 0 ? scopes : undefined
+    });
+
+    // Store oauth data for callback
+    sessionStorage.setItem(`oauth_${authResponse.state}`, JSON.stringify(oauthData));
+
+    // Redirect to OAuth authorization URL
+    window.location.href = authResponse.authorization_url;
   };
 
-  const renderStep2 = () => (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold text-neutral-900">Configure {selectedTemplate?.name}</h2>
-        <p className="text-neutral-600 mt-2">Enter your connection details</p>
-      </div>
-      
-      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
-        <div>
-          <label htmlFor="name" className="block text-sm font-medium text-neutral-700 mb-2">
-            Integration Name
-          </label>
-          <input
-            {...register('name')}
-            type="text"
-            id="name"
-            className={`w-full px-4 py-3 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors ${
-              errors.name ? 'border-red-300' : 'border-neutral-300'
-            }`}
-            placeholder="e.g., Production Jira"
-          />
-          {errors.name && (
-            <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
-          )}
-        </div>
+  const groupTemplatesByCategory = () => {
+    const grouped: Record<string, IntegrationTemplate[]> = {};
+    Object.values(templates).forEach(template => {
+      const category = template.category;
+      if (!grouped[category]) {
+        grouped[category] = [];
+      }
+      grouped[category].push(template);
+    });
+    return grouped;
+  };
 
-        <div>
-          <label htmlFor="description" className="block text-sm font-medium text-neutral-700 mb-2">
-            Description (Optional)
-          </label>
-          <textarea
-            {...register('description')}
-            id="description"
-            rows={3}
-            className="w-full px-4 py-3 border border-neutral-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-            placeholder="Describe what this integration is for..."
-          />
-        </div>
+  const getCategoryDisplayName = (category: string): string => {
+    const categoryNames: Record<string, string> = {
+      project_management: 'Project Management',
+      customer_support: 'Customer Support',
+      crm: 'CRM Systems',
+      development: 'Development & DevOps',
+      communication: 'Communication',
+      cloud: 'Cloud Platforms',
+      erp: 'ERP Systems',
+      marketing: 'Marketing & Analytics',
+      ecommerce: 'E-commerce',
+      financial: 'Financial',
+      hr: 'HR & Recruitment',
+      other: 'Other',
+      custom: 'Custom'
+    };
+    return categoryNames[category] || category.charAt(0).toUpperCase() + category.slice(1);
+  };
 
-        {selectedTemplate?.fields.includes('base_url') && (
-          <div>
-            <label htmlFor="base_url" className="block text-sm font-medium text-neutral-700 mb-2">
-              Base URL
-            </label>
-            <input
-              {...register('base_url')}
-              type="url"
-              id="base_url"
-              className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                errors.base_url ? 'border-red-300' : 'border-neutral-300'
-              }`}
-              placeholder="https://your-domain.com"
-            />
-            {errors.base_url && (
-              <p className="mt-1 text-sm text-red-600">{errors.base_url.message}</p>
-            )}
-          </div>
-        )}
-
-        <div>
-          <label htmlFor="api_key" className="block text-sm font-medium text-neutral-700 mb-2">
-            API Key / Token
-            <span className="text-xs text-neutral-500 ml-2">🔑 Authentication required</span>
-          </label>
-          <input
-            {...register('api_key')}
-            type="password"
-            id="api_key"
-            className={`w-full px-4 py-3 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors ${
-              errors.api_key ? 'border-red-300' : 'border-neutral-300'
-            }`}
-            placeholder="Enter your API key or token"
-          />
-          {errors.api_key && (
-            <p className="mt-1 text-sm text-red-600">{errors.api_key.message}</p>
-          )}
-          <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-xs text-blue-800">
-              <strong>🔍 Where to find this:</strong>
-              {selectedTemplate?.id === 'jira' && ' Go to Jira → Settings → System → Personal Access Tokens'}
-              {selectedTemplate?.id === 'github' && ' Go to GitHub → Settings → Developer settings → Personal access tokens'}
-              {selectedTemplate?.id === 'salesforce' && ' Go to Salesforce → Setup → Apps → App Manager → Connected Apps'}
-              {selectedTemplate?.id === 'zendesk' && ' Go to Zendesk → Admin → Channels → API → Token Access'}
-              {selectedTemplate?.id === 'custom' && ' Check your API documentation for authentication details'}
-              {!['jira', 'github', 'salesforce', 'zendesk', 'custom'].includes(selectedTemplate?.id || '') && ' Check your platform\'s API documentation for authentication details'}
-            </p>
-          </div>
-        </div>
-
-        {selectedTemplate?.fields.includes('username') && (
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium text-neutral-700 mb-2">
-              Username / Email
-            </label>
-            <input
-              {...register('username')}
-              type="text"
-              id="username"
-              className="w-full px-4 py-3 border border-neutral-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-              placeholder="Enter your username or email"
-            />
-          </div>
-        )}
-
-        {selectedTemplate?.fields.includes('password') && (
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-neutral-700 mb-2">
-              Password
-            </label>
-            <input
-              {...register('password')}
-              type="password"
-              id="password"
-              className="w-full px-4 py-3 border border-neutral-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-              placeholder="Enter your password"
-            />
-          </div>
-        )}
-
-        {/* Additional fields for different integration types */}
-        {selectedTemplate?.fields.includes('api_token') && (
-          <div>
-            <label htmlFor="api_token" className="block text-sm font-medium text-neutral-700 mb-2">
-              API Token
-            </label>
-            <input
-              {...register('api_token')}
-              type="password"
-              id="api_token"
-              className="w-full px-4 py-3 border border-neutral-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-              placeholder="Enter your API token"
-            />
-          </div>
-        )}
-
-        {selectedTemplate?.fields.includes('access_key') && (
-          <div>
-            <label htmlFor="access_key" className="block text-sm font-medium text-neutral-700 mb-2">
-              Access Key ID
-            </label>
-            <input
-              {...register('access_key')}
-              type="password"
-              id="access_key"
-              className="w-full px-4 py-3 border border-neutral-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-              placeholder="Enter your access key ID"
-            />
-          </div>
-        )}
-
-        {selectedTemplate?.fields.includes('secret_key') && (
-          <div>
-            <label htmlFor="secret_key" className="block text-sm font-medium text-neutral-700 mb-2">
-              Secret Access Key
-            </label>
-            <input
-              {...register('secret_key')}
-              type="password"
-              id="secret_key"
-              className="w-full px-4 py-3 border border-neutral-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-              placeholder="Enter your secret access key"
-            />
-          </div>
-        )}
-
-        {selectedTemplate?.fields.includes('client_id') && (
-          <div>
-            <label htmlFor="client_id" className="block text-sm font-medium text-neutral-700 mb-2">
-              Client ID
-            </label>
-            <input
-              {...register('client_id')}
-              type="text"
-              id="client_id"
-              className="w-full px-4 py-3 border border-neutral-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-              placeholder="Enter your client ID"
-            />
-          </div>
-        )}
-
-        {selectedTemplate?.fields.includes('client_secret') && (
-          <div>
-            <label htmlFor="client_secret" className="block text-sm font-medium text-neutral-700 mb-2">
-              Client Secret
-            </label>
-            <input
-              {...register('client_secret')}
-              type="password"
-              id="client_secret"
-              className="w-full px-4 py-3 border border-neutral-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-              placeholder="Enter your client secret"
-            />
-          </div>
-        )}
-
-        {selectedTemplate?.fields.includes('tenant_id') && (
-          <div>
-            <label htmlFor="tenant_id" className="block text-sm font-medium text-neutral-700 mb-2">
-              Tenant ID
-            </label>
-            <input
-              {...register('tenant_id')}
-              type="text"
-              id="tenant_id"
-              className="w-full px-4 py-3 border border-neutral-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-              placeholder="Enter your tenant ID"
-            />
-          </div>
-        )}
-
-        {selectedTemplate?.fields.includes('subscription_id') && (
-          <div>
-            <label htmlFor="subscription_id" className="block text-sm font-medium text-neutral-700 mb-2">
-              Subscription ID
-            </label>
-            <input
-              {...register('subscription_id')}
-              type="text"
-              id="subscription_id"
-              className="w-full px-4 py-3 border border-neutral-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-              placeholder="Enter your subscription ID"
-            />
-          </div>
-        )}
-
-        {selectedTemplate?.fields.includes('region') && (
-          <div>
-            <label htmlFor="region" className="block text-sm font-medium text-neutral-700 mb-2">
-              Region
-            </label>
-            <input
-              {...register('region')}
-              type="text"
-              id="region"
-              className="w-full px-4 py-3 border border-neutral-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-              placeholder="e.g., us-east-1"
-            />
-          </div>
-        )}
-
-        {selectedTemplate?.fields.includes('refresh_token') && (
-          <div>
-            <label htmlFor="refresh_token" className="block text-sm font-medium text-neutral-700 mb-2">
-              Refresh Token
-            </label>
-            <input
-              {...register('refresh_token')}
-              type="password"
-              id="refresh_token"
-              className="w-full px-4 py-3 border border-neutral-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-              placeholder="Enter your refresh token"
-            />
-          </div>
-        )}
-
-        {/* Monitoring Preferences */}
-        {selectedTemplate && selectedTemplate.config.monitoring && (
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-3">
-              What would you like to monitor? (Optional)
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {selectedTemplate.config.monitoring.map((metric, idx) => (
-                <label key={idx} className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    value={metric}
-                    {...register('monitoring_preferences')}
-                    className="rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
-                  />
-                  <span className="text-sm text-neutral-700 capitalize">
-                    {metric.replace(/_/g, ' ')}
-                  </span>
-                </label>
+  if (templatesLoading) {
+    return (
+      <div className="fixed inset-0 backdrop-blur-md flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4 p-8">
+          <div className="animate-pulse">
+            <div className="flex items-center mb-6">
+              <div className="w-8 h-8 bg-neutral-200 rounded mr-4"></div>
+              <div className="h-8 bg-neutral-200 rounded w-64"></div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[1, 2, 3, 4, 5, 6].map(i => (
+                <div key={i} className="h-32 bg-neutral-200 rounded-lg"></div>
               ))}
             </div>
-            <p className="text-xs text-neutral-500 mt-2">
-              You can customize monitoring preferences later
-            </p>
-          </div>
-        )}
-
-        <div className="flex justify-end pt-6">
-          <Button
-            type="submit"
-            disabled={!isValid}
-            rightIcon={<ArrowRightIcon className="h-4 w-4" />}
-            className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
-          >
-            Continue to Test
-          </Button>
-        </div>
-      </form>
-    </div>
-  );
-
-  const renderStep3 = () => (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold text-neutral-900">Test Connection</h2>
-        <p className="text-neutral-600 mt-2">Let&apos;s verify your integration works before saving</p>
-      </div>
-      
-      <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-6">
-        <div className="flex items-center space-x-3 mb-4">
-          <PuzzlePieceIcon className="h-6 w-6 text-primary-600" />
-          <h3 className="font-medium text-neutral-900">Connection Details</h3>
-        </div>
-        
-        <div className="space-y-2 text-sm text-neutral-600">
-          <p><span className="font-medium">Name:</span> {watch('name')}</p>
-          <p><span className="font-medium">Type:</span> {watch('integration_type')}</p>
-          <p><span className="font-medium">URL:</span> {watch('base_url')}</p>
-        </div>
-      </div>
-      
-      <div className="text-center">
-        <Button
-          onClick={handleSubmit(handleFormSubmit)}
-          loading={isTesting}
-          disabled={isTesting}
-          className="w-full"
-        >
-          {isTesting ? 'Testing Connection...' : 'Test Connection'}
-        </Button>
-      </div>
-      
-      {testResult && (
-        <div className={`p-4 rounded-md border ${
-          testResult.success 
-            ? 'bg-green-50 border-green-200' 
-            : 'bg-red-50 border-red-200'
-        }`}>
-          <div className="flex items-center space-x-2">
-            {testResult.success ? (
-              <CheckCircleIcon className="h-5 w-5 text-green-600" />
-            ) : (
-              <ExclamationTriangleIcon className="h-5 w-5 text-red-600" />
-            )}
-            <p className={`text-sm font-medium ${
-              testResult.success ? 'text-green-800' : 'text-red-800'
-            }`}>
-              {testResult.message}
-            </p>
           </div>
         </div>
-      )}
-      
-      <div className="flex justify-center pt-6">
-        {testResult?.success && (
-          <Button
-            onClick={() => setCurrentStep(4)}
-            rightIcon={<ArrowRightIcon className="h-4 w-4" />}
-            className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
-          >
-            Continue to Finish
-          </Button>
-        )}
       </div>
-    </div>
-  );
+    );
+  }
 
-  const renderStep4 = () => (
-    <div className="space-y-6 text-center">
-      <div className="mx-auto h-16 w-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-        <CheckCircleIcon className="h-12 w-12 text-green-600" />
+  if (error && Object.keys(templates).length === 0) {
+    return (
+      <div className="fixed inset-0 backdrop-blur-md flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-8 text-center">
+          <ExclamationTriangleIcon className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-neutral-900 mb-2">Failed to Load Templates</h2>
+          <p className="text-neutral-600 mb-6">{error}</p>
+          <div className="flex space-x-3">
+            <Button onClick={fetchTemplates} className="flex-1">
+              Try Again
+            </Button>
+            <Button onClick={onCancel} variant="outline" className="flex-1">
+              Cancel
+            </Button>
+          </div>
+        </div>
       </div>
-      
-      <h2 className="text-2xl font-bold text-neutral-900">Integration Ready!</h2>
-      <p className="text-neutral-600">
-        Your {selectedTemplate?.name} integration has been successfully configured and tested.
-      </p>
-      
-      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-        <p className="text-sm text-green-800">
-          The integration is now active and ready to use. You can start querying your data through the chat interface.
-        </p>
-      </div>
-      
-      <Button
-        onClick={handleSubmit(handleFormSubmit)}
-        className="w-full"
-        size="lg"
-      >
-        Complete Setup
-      </Button>
-    </div>
-  );
-
-  const renderCurrentStep = () => {
-    switch (currentStep) {
-      case 1:
-        return renderStep1();
-      case 2:
-        return renderStep2();
-      case 3:
-        return renderStep3();
-      case 4:
-        return renderStep4();
-      default:
-        return renderStep1();
-    }
-  };
+    );
+  }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="bg-white shadow-xl rounded-2xl border border-neutral-200">
-        {/* Progress bar */}
-        <div className="px-6 py-4 border-b border-neutral-200">
+    <div className="fixed inset-0 backdrop-blur-md flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden">
+        {/* Header */}
+        <div className="border-b border-neutral-200 p-6">
           <div className="flex items-center justify-between">
-            {[1, 2, 3, 4].map((step) => (
+            <div className="flex items-center space-x-3">
+              <PuzzlePieceIcon className="w-8 h-8 text-primary-600" />
+              <div>
+                <h2 className="text-2xl font-bold text-neutral-900">
+                  {currentStep === 1 && 'Choose Integration'}
+                  {currentStep === 2 && 'Configure Integration'}
+                  {currentStep === 3 && 'Integration Complete'}
+                </h2>
+                <p className="text-neutral-600">
+                  {currentStep === 1 && 'Select the service you want to integrate'}
+                  {currentStep === 2 && `Set up your ${selectedTemplate?.name} integration`}
+                  {currentStep === 3 && 'Your integration is ready to use'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onCancel}
+              className="text-neutral-400 hover:text-neutral-600"
+            >
+              <XMarkIcon className="w-6 h-6" />
+            </button>
+          </div>
+          
+          {/* Step indicator */}
+          <div className="flex items-center justify-center mt-6 space-x-8">
+            {[1, 2, 3].map((step) => (
               <div key={step} className="flex items-center">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  step < currentStep
-                    ? 'bg-green-500 text-white'
-                    : step === currentStep
-                    ? 'bg-primary-500 text-white'
-                    : 'bg-neutral-200 text-neutral-600'
+                  step <= currentStep
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-neutral-200 text-neutral-500'
                 }`}>
                   {step < currentStep ? (
-                    <CheckCircleIcon className="h-5 w-5" />
+                    <CheckCircleIcon className="w-5 h-5" />
                   ) : (
                     step
                   )}
                 </div>
-                {step < 4 && (
-                  <div className={`w-16 h-0.5 mx-2 ${
-                    step < currentStep ? 'bg-green-500' : 'bg-neutral-200'
+                {step < 3 && (
+                  <div className={`w-16 h-0.5 ml-2 ${
+                    step < currentStep ? 'bg-primary-600' : 'bg-neutral-200'
                   }`} />
                 )}
               </div>
             ))}
           </div>
         </div>
-        
-        {/* Step content */}
-        <div className="px-8 py-10">
-          {renderCurrentStep()}
-        </div>
-        
-        {/* Footer with navigation and close */}
-        <div className="px-8 py-6 bg-gray-50 border-t border-neutral-200 flex justify-between items-center">
-          <div className="flex space-x-3">
-            {currentStep > 1 && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={goBack}
-                leftIcon={<ArrowLeftIcon className="h-4 w-4" />}
-              >
-                Back
-              </Button>
-            )}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onCancel}
-              className="text-neutral-600 hover:text-neutral-800"
-            >
-              Cancel
-            </Button>
-          </div>
-          
-          <div className="text-sm text-neutral-500">
-            Step {currentStep} of 4
-          </div>
+
+        {/* Content */}
+        <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+          {/* Step 1: Template Selection */}
+          {currentStep === 1 && (
+            <div className="space-y-8">
+              {/* Custom Integration Highlight */}
+              <div className="bg-gradient-to-br from-primary-50 to-teal-50 rounded-xl p-6 border border-primary-200">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-2xl">⚙️</span>
+                    <div>
+                      <h3 className="font-semibold text-neutral-900">Custom Integration</h3>
+                      <p className="text-sm text-neutral-600">Connect any REST API service</p>
+                    </div>
+                  </div>
+                  <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full">
+                    Flexible
+                  </span>
+                </div>
+                
+                <Button
+                  onClick={() => templates.custom && handleTemplateSelect(templates.custom)}
+                  className="w-full bg-green-200 hover:bg-green-300 text-black"
+                  disabled={!templates.custom}
+                >
+                  <SparklesIcon className="w-4 h-4 mr-2" />
+                  Set Up Custom Integration
+                </Button>
+              </div>
+
+              {/* Popular Integrations */}
+              {Object.entries(groupTemplatesByCategory()).map(([category, categoryTemplates]) => {
+                if (category === 'custom') return null;
+                
+                return (
+                  <div key={category} className="space-y-4">
+                    <h3 className="text-lg font-semibold text-neutral-900 flex items-center">
+                      <CloudIcon className="w-5 h-5 mr-2 text-primary-600" />
+                      {getCategoryDisplayName(category)}
+                    </h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {categoryTemplates.map((template) => (
+                        <button
+                          key={template.id}
+                          onClick={() => handleTemplateSelect(template)}
+                          className="p-4 border-2 border-neutral-200 rounded-xl hover:border-primary-300 hover:shadow-lg transition-all duration-200 text-left group"
+                        >
+                          <div className="flex items-start space-x-3">
+                            <span className="text-2xl group-hover:scale-110 transition-transform">
+                              {template.icon}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-neutral-900 group-hover:text-primary-700 truncate">
+                                {template.name}
+                              </h4>
+                              <p className="text-sm text-neutral-600 line-clamp-2">
+                                {template.description}
+                              </p>
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                {template.config.capabilities.slice(0, 2).map((capability) => (
+                                  <span
+                                    key={capability}
+                                    className="inline-block px-2 py-0.5 bg-neutral-100 text-neutral-600 text-xs rounded-full"
+                                  >
+                                    {capability}
+                                  </span>
+                                ))}
+                                {template.config.capabilities.length > 2 && (
+                                  <span className="inline-block px-2 py-0.5 bg-neutral-100 text-neutral-600 text-xs rounded-full">
+                                    +{template.config.capabilities.length - 2} more
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Step 2: Configuration */}
+          {currentStep === 2 && selectedTemplate && (
+            <form onSubmit={handleSubmit(handleCredentialSubmit)} className="space-y-6">
+              {error && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <ExclamationTriangleIcon className="w-5 h-5 text-red-600 flex-shrink-0" />
+                    <span className="text-red-800 text-sm">{error}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Selected Template Info */}
+              <div className="bg-neutral-50 rounded-lg p-4 flex items-center space-x-3">
+                <span className="text-2xl">{selectedTemplate.icon}</span>
+                <div>
+                  <h3 className="font-medium text-neutral-900">{selectedTemplate.name}</h3>
+                  <p className="text-sm text-neutral-600">{selectedTemplate.description}</p>
+                </div>
+              </div>
+
+              {/* Basic Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-neutral-700 mb-2">
+                    Integration Name *
+                  </label>
+                  <input
+                    {...register('name')}
+                    type="text"
+                    id="name"
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    placeholder={`My ${selectedTemplate.name} Integration`}
+                  />
+                  {errors.name && (
+                    <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label htmlFor="description" className="block text-sm font-medium text-neutral-700 mb-2">
+                    Description
+                  </label>
+                  <input
+                    {...register('description')}
+                    type="text"
+                    id="description"
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    placeholder={`Integration with ${selectedTemplate.name}`}
+                  />
+                </div>
+              </div>
+
+              {/* Authentication Method Selection */}
+              {oauthSupport[selectedTemplate.integration_type]?.supports_oauth && (
+                <div>
+                  <h4 className="text-lg font-medium text-neutral-900 mb-4">
+                    Authentication Method
+                  </h4>
+                  
+                  <div className="grid grid-cols-2 gap-4 mb-6">
+                    <button
+                      type="button"
+                      onClick={() => setAuthMethod('oauth')}
+                      className={`p-4 border-2 rounded-lg text-left transition-all ${
+                        authMethod === 'oauth'
+                          ? 'border-primary-500 bg-primary-50'
+                          : 'border-neutral-200 hover:border-neutral-300'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-4 h-4 rounded-full border-2 ${
+                          authMethod === 'oauth' ? 'border-primary-500 bg-primary-500' : 'border-neutral-300'
+                        }`}>
+                          {authMethod === 'oauth' && (
+                            <div className="w-2 h-2 bg-white rounded-full mx-auto mt-0.5"></div>
+                          )}
+                        </div>
+                        <div>
+                          <h5 className="font-medium">OAuth 2.0</h5>
+                          <p className="text-sm text-neutral-600">Secure, recommended</p>
+                        </div>
+                      </div>
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => setAuthMethod('credentials')}
+                      className={`p-4 border-2 rounded-lg text-left transition-all ${
+                        authMethod === 'credentials'
+                          ? 'border-primary-500 bg-primary-50'
+                          : 'border-neutral-200 hover:border-neutral-300'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-4 h-4 rounded-full border-2 ${
+                          authMethod === 'credentials' ? 'border-primary-500 bg-primary-500' : 'border-neutral-300'
+                        }`}>
+                          {authMethod === 'credentials' && (
+                            <div className="w-2 h-2 bg-white rounded-full mx-auto mt-0.5"></div>
+                          )}
+                        </div>
+                        <div>
+                          <h5 className="font-medium">API Credentials</h5>
+                          <p className="text-sm text-neutral-600">Direct API access</p>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+
+                  {oauthSupport[selectedTemplate.integration_type]?.oauth_config?.note && (
+                    <div className="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-800">
+                        💡 {oauthSupport[selectedTemplate.integration_type].oauth_config?.note}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* OAuth Configuration */}
+              {authMethod === 'oauth' && (
+                <div>
+                  <h4 className="text-lg font-medium text-neutral-900 mb-4">
+                    OAuth Configuration
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label htmlFor="client_id" className="block text-sm font-medium text-neutral-700 mb-2">
+                        Client ID *
+                      </label>
+                      <input
+                        {...register('client_id' as keyof IntegrationFormData)}
+                        type="text"
+                        id="client_id"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        placeholder="Enter your OAuth client ID"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label htmlFor="client_secret" className="block text-sm font-medium text-neutral-700 mb-2">
+                        Client Secret *
+                      </label>
+                      <input
+                        {...register('client_secret' as keyof IntegrationFormData)}
+                        type="password"
+                        id="client_secret"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        placeholder="Enter your OAuth client secret"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Scopes Selection */}
+                  {availableScopes.length > 0 && (
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-neutral-700 mb-2">
+                        Permissions (Scopes)
+                      </label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-3 border border-neutral-200 rounded-lg">
+                        {availableScopes.map((scope) => (
+                          <label key={scope} className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={scopes.includes(scope)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setScopes(prev => [...prev, scope]);
+                                } else {
+                                  setScopes(prev => prev.filter(s => s !== scope));
+                                }
+                              }}
+                              className="rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
+                            />
+                            <span className="text-sm text-neutral-700">{scope}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Credential Configuration */}
+              {authMethod === 'credentials' && (
+                <div>
+                  <h4 className="text-lg font-medium text-neutral-900 mb-4">
+                    API Credentials
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {selectedTemplate.config.required_credentials.map((field) => (
+                      <div key={field}>
+                        <label htmlFor={field} className="block text-sm font-medium text-neutral-700 mb-2">
+                          {field.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')} *
+                        </label>
+                        <input
+                          {...register(field as keyof IntegrationFormData)}
+                          type={field.includes('password') || field.includes('secret') || field.includes('token') ? 'password' : 'text'}
+                          id={field}
+                          className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          placeholder={`Enter your ${field.replace('_', ' ')}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Base URL for custom integrations */}
+              {selectedTemplate.id === 'custom' && (
+                <div>
+                  <label htmlFor="base_url" className="block text-sm font-medium text-neutral-700 mb-2">
+                    Base URL *
+                  </label>
+                  <input
+                    {...register('base_url')}
+                    type="url"
+                    id="base_url"
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    placeholder="https://api.example.com"
+                  />
+                  {errors.base_url && (
+                    <p className="mt-1 text-sm text-red-600">{errors.base_url.message}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Documentation Link */}
+              {selectedTemplate.documentation_url && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-blue-800">
+                    Need help finding these credentials?{' '}
+                    <a 
+                      href={selectedTemplate.documentation_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="font-medium underline hover:no-underline"
+                    >
+                      View {selectedTemplate.name} documentation
+                    </a>
+                  </p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex items-center justify-between pt-6 border-t border-neutral-200">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setCurrentStep(1)}
+                >
+                  <ArrowLeftIcon className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+                
+                <Button
+                  type="submit"
+                  loading={isTesting}
+                  disabled={isTesting}
+                >
+                  {isTesting ? (
+                    authMethod === 'oauth' ? 'Initiating OAuth...' : 'Testing Connection...'
+                  ) : (
+                    authMethod === 'oauth' ? 'Connect with OAuth' : 'Create & Test Integration'
+                  )}
+                  {!isTesting && <ArrowRightIcon className="w-4 h-4 ml-2" />}
+                </Button>
+              </div>
+            </form>
+          )}
+
+          {/* Step 3: Success */}
+          {currentStep === 3 && (
+            <div className="text-center py-8">
+              <CheckCircleIcon className="w-16 h-16 text-green-500 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-neutral-900 mb-2">Integration Complete!</h3>
+              <p className="text-neutral-600 mb-6">
+                Your {selectedTemplate?.name} integration has been created and tested successfully.
+              </p>
+              
+              {testResult && (
+                <div className={`p-4 rounded-lg mb-6 ${
+                  testResult.success 
+                    ? 'bg-green-50 border border-green-200' 
+                    : 'bg-red-50 border border-red-200'
+                }`}>
+                  <p className={`text-sm ${
+                    testResult.success ? 'text-green-800' : 'text-red-800'
+                  }`}>
+                    {testResult.message}
+                  </p>
+                </div>
+              )}
+              
+              <p className="text-sm text-neutral-500">
+                You will be redirected to the integrations page shortly...
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

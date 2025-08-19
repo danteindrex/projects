@@ -24,6 +24,8 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 from app.models.base import Base
 from app.models.user import User
 from app.models.integration import Integration
+from app.models.agent import Agent
+from app.models.chat import ChatSession, ChatMessage
 
 def create_tables():
     """Create all database tables"""

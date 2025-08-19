@@ -15,7 +15,7 @@ from app.db.database import get_db_session
 from app.models.user import User
 from app.models.chat import ChatSession, ChatMessage
 from app.schemas.chat import ChatRequest, ChatResponse, WebSocketMessage, ToolCallEvent, AgentEvent
-from app.core.logging import log_websocket_event
+from app.core.logging import log_websocket_event, log_event
 from app.core.kafka_service import publish_chat_event
 
 router = APIRouter()
@@ -340,4 +340,112 @@ async def get_chat_sessions(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve chat sessions"
+        )
+
+@router.get("/sessions/{session_id}/messages", response_model=List[ChatResponse])
+async def get_chat_messages(
+    session_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db_session)
+):
+    """Get messages for a specific chat session"""
+    try:
+        # Verify session ownership
+        session = db.query(ChatSession).filter(
+            ChatSession.id == session_id,
+            ChatSession.user_id == current_user.id
+        ).first()
+        
+        if not session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Chat session not found"
+            )
+        
+        # Get messages for the session
+        messages = db.query(ChatMessage).filter(
+            ChatMessage.session_id == session_id
+        ).order_by(ChatMessage.created_at.asc()).all()
+        
+        return [
+            ChatResponse(
+                session_id=session_id,
+                message_id=message.id,
+                content=message.content,
+                message_type=message.message_type,
+                metadata={
+                    "role": message.role,
+                    "tokens_used": message.tokens_used,
+                    "processing_time": message.processing_time,
+                    "tool_name": message.tool_name,
+                    "tool_status": message.tool_status,
+                    "timestamp": message.created_at.isoformat()
+                }
+            )
+            for message in messages
+        ]
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_event("chat_messages_retrieval_failed", error=str(e), user_id=current_user.id, session_id=session_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve chat messages"
+        )
+
+@router.get("/sessions/current", response_model=ChatResponse)
+async def get_or_create_current_session(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db_session)
+):
+    """Get or create the current active chat session for the user"""
+    try:
+        # Look for an active session
+        session = db.query(ChatSession).filter(
+            ChatSession.user_id == current_user.id,
+            ChatSession.status == "active"
+        ).order_by(ChatSession.last_activity.desc()).first()
+        
+        # If no active session, create one
+        if not session:
+            session = ChatSession(
+                title="New Chat",
+                user_id=current_user.id,
+                tenant_id=current_user.tenant_id if hasattr(current_user, 'tenant_id') else "default",
+                status="active"
+            )
+            db.add(session)
+            db.commit()
+            db.refresh(session)
+            
+            # Publish session created event
+            try:
+                await publish_chat_event(str(session.id), "session_created", {
+                    "user_id": current_user.id,
+                    "title": session.title,
+                    "tenant_id": session.tenant_id
+                })
+            except Exception as e:
+                logger.warning(f"Failed to publish chat session event: {e}")
+        
+        return ChatResponse(
+            session_id=session.id,
+            message_id=0,
+            content=session.title or "Current session",
+            message_type="session",
+            metadata={
+                "status": session.status,
+                "total_messages": session.total_messages,
+                "created_at": session.created_at.isoformat(),
+                "last_activity": session.last_activity.isoformat() if session.last_activity else None
+            }
+        )
+        
+    except Exception as e:
+        db.rollback()
+        log_event("current_session_retrieval_failed", error=str(e), user_id=current_user.id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get or create current session"
         )

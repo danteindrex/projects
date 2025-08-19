@@ -1,6 +1,7 @@
-from sqlalchemy import Column, String, Text, Boolean, JSON, ForeignKey, Enum, Integer, Index
+from sqlalchemy import Column, String, Text, Boolean, JSON, ForeignKey, Enum, Integer, Index, DateTime
 from sqlalchemy.orm import relationship
-from .base import TenantModel
+from .base import TenantModel, Base
+from datetime import datetime
 import enum
 
 class IntegrationType(str, enum.Enum):
@@ -63,6 +64,13 @@ class IntegrationStatus(str, enum.Enum):
     ERROR = "error"
     TESTING = "testing"
 
+class AuthType(str, enum.Enum):
+    API_KEY = "api_key"
+    BASIC = "basic"
+    BEARER = "bearer"
+    OAUTH2 = "oauth2"
+    KEY_TOKEN = "key_token"
+
 class Integration(TenantModel):
     """Integration model for connected business systems"""
     __tablename__ = "integrations"
@@ -82,6 +90,11 @@ class Integration(TenantModel):
     rate_limit = Column(Integer, default=100)  # requests per minute
     timeout = Column(Integer, default=30)  # seconds
     
+    # Authentication
+    auth_type = Column(Enum(AuthType), default=AuthType.API_KEY)
+    oauth_scopes = Column(JSON, default=[])  # Requested OAuth scopes
+    token_expires_at = Column(DateTime)  # When access token expires
+    
     # Health monitoring
     last_health_check = Column(String(255))
     health_status = Column(String(50), default="unknown")
@@ -91,7 +104,7 @@ class Integration(TenantModel):
     # Relationships
     owner_id = Column(Integer, ForeignKey("users.id"))
     owner = relationship("User", back_populates="integrations")
-    agents = relationship("Agent", back_populates="integration")
+    oauth_states = relationship("OAuthState", back_populates="integration")
     
     # Define indexes for better query performance
     __table_args__ = (
@@ -103,3 +116,40 @@ class Integration(TenantModel):
     
     def __repr__(self):
         return f"<Integration {self.name} ({self.integration_type})>"
+
+class OAuthState(Base):
+    """OAuth state tracking for CSRF protection"""
+    __tablename__ = "oauth_states"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    state = Column(String(255), nullable=False, unique=True, index=True)
+    integration_type = Column(Enum(IntegrationType), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    integration_id = Column(Integer, ForeignKey("integrations.id"), nullable=True)  # Set after creation
+    
+    # OAuth flow data
+    client_id = Column(String(255), nullable=False)
+    scopes = Column(JSON, default=[])
+    redirect_uri = Column(String(500))
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)  # States should expire
+    used_at = Column(DateTime, nullable=True)  # When the state was consumed
+    
+    # Status
+    is_used = Column(Boolean, default=False)
+    
+    # Relationships
+    user = relationship("User")
+    integration = relationship("Integration", back_populates="oauth_states")
+    
+    # Indexes for performance
+    __table_args__ = (
+        Index('idx_oauth_state_user_type', 'user_id', 'integration_type'),
+        Index('idx_oauth_state_expires', 'expires_at'),
+        Index('idx_oauth_state_used', 'is_used', 'created_at'),
+    )
+    
+    def __repr__(self):
+        return f"<OAuthState {self.state[:8]}... ({self.integration_type})>"

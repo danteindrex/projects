@@ -35,6 +35,8 @@ export default function ChatInterface() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentToolCall, setCurrentToolCall] = useState<ToolCallEvent | null>(null);
   const [isThinking, setIsThinking] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -42,18 +44,8 @@ export default function ChatInterface() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      // Initialize WebSocket connection
-      initializeWebSocket();
-      
-      // Add welcome message
-      setMessages([
-        {
-          id: 'welcome',
-          content: `Hello ${user?.full_name || user?.username}! I'm your AI assistant. I can help you query your business systems, analyze data, and provide insights. What would you like to know?`,
-          type: 'assistant',
-          timestamp: new Date().toISOString()
-        }
-      ]);
+      // Load chat history first, then initialize WebSocket
+      loadChatHistory();
     }
 
     return () => {
@@ -62,6 +54,62 @@ export default function ChatInterface() {
       }
     };
   }, [isAuthenticated, user]);
+
+  const loadChatHistory = async () => {
+    try {
+      setIsLoadingHistory(true);
+      
+      // Get or create current session
+      const session = await apiClient.getCurrentChatSession();
+      setCurrentSessionId(session.session_id);
+      
+      // Load messages for the session
+      const chatMessages = await apiClient.getChatMessages(session.session_id);
+      
+      // Convert API messages to ChatMessage format
+      const formattedMessages: ChatMessage[] = chatMessages.map(msg => ({
+        id: msg.message_id.toString(),
+        content: msg.content,
+        type: msg.message_type as 'user' | 'assistant' | 'system' | 'tool_call' | 'thinking',
+        timestamp: msg.metadata?.timestamp || new Date().toISOString(),
+        metadata: msg.metadata
+      }));
+      
+      // If no messages exist, add welcome message
+      if (formattedMessages.length === 0) {
+        const welcomeMessage: ChatMessage = {
+          id: 'welcome',
+          content: `Hello ${user?.full_name || user?.username}! I'm your AI assistant. I can help you query your business systems, analyze data, and provide insights. What would you like to know?`,
+          type: 'assistant',
+          timestamp: new Date().toISOString()
+        };
+        setMessages([welcomeMessage]);
+      } else {
+        setMessages(formattedMessages);
+      }
+      
+      // Initialize WebSocket after loading history
+      initializeWebSocket();
+      
+    } catch (error) {
+      console.error('Failed to load chat history:', error);
+      
+      // Fallback to welcome message
+      setMessages([
+        {
+          id: 'welcome',
+          content: `Hello ${user?.full_name || user?.username}! I'm your AI assistant. I can help you query your business systems, analyze data, and provide insights. What would you like to know?`,
+          type: 'assistant',
+          timestamp: new Date().toISOString()
+        }
+      ]);
+      
+      // Still initialize WebSocket
+      initializeWebSocket();
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
 
   useEffect(() => {
     scrollToBottom();
@@ -318,7 +366,7 @@ export default function ChatInterface() {
   const getMessageStyle = (type: string) => {
     switch (type) {
       case 'user':
-        return 'bg-primary-600 text-white ml-auto';
+        return 'bg-green-200 text-black ml-auto';
       case 'assistant':
         return 'bg-white border border-neutral-200';
       case 'tool_call':
@@ -375,7 +423,16 @@ export default function ChatInterface() {
         aria-label="Chat messages"
         aria-live="polite"
       >
-        {messages.map((message) => (
+        {isLoadingHistory ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+              <p className="mt-2 text-neutral-600 text-sm">Loading chat history...</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {messages.map((message) => (
           <div
             key={message.id}
             className={`flex items-start space-x-3 ${
@@ -443,6 +500,8 @@ export default function ChatInterface() {
         )}
 
         <div ref={messagesEndRef} />
+          </>
+        )}
       </main>
 
       {/* Input */}

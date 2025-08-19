@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     KAFKA_TOPIC_PREFIX: str = "business_platform"
     
     # Redis Configuration
-    REDIS_URL: str = "redis://localhost:6379"
+    REDIS_URL: str = "redis://localhost:6380"
     
     # Security
     SECRET_KEY: str = "change-this-in-production-use-env-file"

@@ -36,7 +36,7 @@ class Agent(TenantModel):
     
     # Relationships
     integration_id = Column(Integer, ForeignKey("integrations.id"), nullable=True)
-    integration = relationship("Integration", back_populates="agents")
+    integration = relationship("Integration")
     
     def __repr__(self):
         return f"<Agent {self.name} ({self.agent_type})>"
