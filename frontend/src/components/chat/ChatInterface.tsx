@@ -465,7 +465,7 @@ export default function ChatInterface() {
   const getMessageStyle = (type: string) => {
     switch (type) {
       case 'user':
-        return 'bg-primary-regular text-white ml-auto';
+        return 'bg-slate-50 text-black ml-auto';
       case 'assistant':
         return 'bg-white border border-neutral-200 text-neutral-900 shadow-medium';
       case 'tool_call':
@@ -545,7 +545,7 @@ export default function ChatInterface() {
             )}
             
             <div 
-              className={`max-w-xs lg:max-w-2xl px-4 py-3 rounded-lg shadow-soft ${getMessageStyle(message.type)}`}
+              className={`max-w-[85%] sm:max-w-md lg:max-w-2xl px-4 py-3 rounded-lg shadow-soft ${getMessageStyle(message.type)}`}
               role="article"
               aria-label={`${message.type === 'user' ? 'Your message' : 'AI response'} at ${new Date(message.timestamp).toLocaleTimeString()}`}
             >
@@ -579,7 +579,7 @@ export default function ChatInterface() {
                 <div className="absolute -top-1 -right-1 w-3 h-3 bg-teal-400 rounded-full animate-pulse"></div>
               </div>
             </div>
-            <div className="bg-white border border-neutral-200 px-4 py-3 rounded-lg shadow-soft max-w-xs lg:max-w-md">
+            <div className="bg-white border border-neutral-200 px-4 py-3 rounded-lg shadow-soft max-w-[85%] sm:max-w-md lg:max-w-xl">
               <div className="flex items-center space-x-3">
                 <div className="flex space-x-1 items-end">
                   <div className="w-2 h-2 bg-teal-500 rounded-full thinking-dot-1"></div>
@@ -599,7 +599,7 @@ export default function ChatInterface() {
             <div className="flex-shrink-0">
               <CogIcon className="w-8 h-8 text-blue-600" />
             </div>
-            <div className="bg-blue-50 border border-blue-200 px-4 py-2 rounded-lg shadow-soft">
+            <div className="bg-blue-50 border border-blue-200 px-4 py-2 rounded-lg shadow-soft max-w-[85%] sm:max-w-md lg:max-w-xl">
               <div className="flex items-center space-x-2">
                 {getToolCallStatusIcon(currentToolCall.status)}
                 <p className="text-sm text-blue-800">

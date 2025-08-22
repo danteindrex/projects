@@ -121,7 +121,7 @@ export default function HomePage() {
               }}
             >
               <span className="heading-line block">
-                <span className="text-[#27cbb9]" style={{fontSize: '1.1em'}}>AI</span> Powered Business Management
+                <span className="text-[#27cbb9]" style={{fontSize: '1.3em'}}>AI</span> Powered Business Management
               </span>
             </h1>
             

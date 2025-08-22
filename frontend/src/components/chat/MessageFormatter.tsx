@@ -30,13 +30,13 @@ export default function MessageFormatter({ content, messageType, className = '' 
   const getColorClasses = () => {
     if (messageType === 'user') {
       return {
-        text: 'text-white',
-        heading: 'text-white',
-        link: 'text-white hover:text-neutral-200 underline-white',
-        strong: 'text-white',
-        emphasis: 'text-white',
-        code: 'bg-white/20 text-white',
-        blockquote: 'border-white/30 bg-white/10 text-white',
+        text: 'text-black',
+        heading: 'text-black',
+        link: 'text-black hover:text-neutral-700',
+        strong: 'text-black',
+        emphasis: 'text-black',
+        code: 'bg-neutral-100 text-black',
+        blockquote: 'border-neutral-300 bg-neutral-100 text-black',
       };
     }
     return {
@@ -63,17 +63,17 @@ export default function MessageFormatter({ content, messageType, className = '' 
 
     // Enhanced heading formatting
     h1: ({ children, ...props }: any) => (
-      <h1 className={`text-xl font-bold mb-4 mt-6 first:mt-0 ${colors.heading}`} {...props}>
+      <h1 className={`text-lg sm:text-xl font-bold mb-3 sm:mb-4 mt-4 sm:mt-6 first:mt-0 ${colors.heading}`} {...props}>
         {children}
       </h1>
     ),
     h2: ({ children, ...props }: any) => (
-      <h2 className={`text-lg font-semibold mb-3 mt-5 first:mt-0 ${colors.heading}`} {...props}>
+      <h2 className={`text-base sm:text-lg font-semibold mb-2 sm:mb-3 mt-3 sm:mt-5 first:mt-0 ${colors.heading}`} {...props}>
         {children}
       </h2>
     ),
     h3: ({ children, ...props }: any) => (
-      <h3 className={`text-base font-semibold mb-2 mt-4 first:mt-0 ${colors.heading}`} {...props}>
+      <h3 className={`text-sm sm:text-base font-semibold mb-2 mt-3 sm:mt-4 first:mt-0 ${colors.heading}`} {...props}>
         {children}
       </h3>
     ),
@@ -107,8 +107,8 @@ export default function MessageFormatter({ content, messageType, className = '' 
 
     // Enhanced table formatting
     table: ({ children, ...props }: any) => (
-      <div className="overflow-x-auto my-3">
-        <table className="min-w-full border border-neutral-200 rounded-lg" {...props}>
+      <div className="overflow-x-auto my-3 rounded-lg border border-neutral-200">
+        <table className="min-w-full" {...props}>
           {children}
         </table>
       </div>
@@ -119,12 +119,12 @@ export default function MessageFormatter({ content, messageType, className = '' 
       </thead>
     ),
     th: ({ children, ...props }: any) => (
-      <th className="px-3 py-2 text-left text-sm font-semibold text-neutral-900 border-b border-neutral-200" {...props}>
+      <th className="px-2 sm:px-3 py-2 text-left text-xs sm:text-sm font-semibold text-neutral-900 border-b border-neutral-200" {...props}>
         {children}
       </th>
     ),
     td: ({ children, ...props }: any) => (
-      <td className="px-3 py-2 text-sm text-neutral-700 border-b border-neutral-200" {...props}>
+      <td className="px-2 sm:px-3 py-2 text-xs sm:text-sm text-neutral-700 border-b border-neutral-200" {...props}>
         {children}
       </td>
     ),
@@ -149,25 +149,25 @@ export default function MessageFormatter({ content, messageType, className = '' 
       const blockId = `code-${Math.random().toString(36).substr(2, 9)}`;
 
       return (
-        <div className="relative group my-4">
-          <div className="flex items-center justify-between bg-neutral-800 text-neutral-200 px-4 py-2 rounded-t-lg text-sm">
-            <span className="font-mono">{language || 'code'}</span>
+        <div className="relative group my-3 sm:my-4">
+          <div className="flex items-center justify-between bg-neutral-800 text-neutral-200 px-3 sm:px-4 py-2 rounded-t-lg text-xs sm:text-sm">
+            <span className="font-mono truncate mr-2">{language || 'code'}</span>
             <button
               onClick={() => handleCopyCode(codeString, blockId)}
-              className="flex items-center space-x-1 text-neutral-400 hover:text-white transition-colors duration-200"
+              className="flex items-center space-x-1 text-neutral-400 hover:text-white transition-colors duration-200 flex-shrink-0"
               aria-label="Copy code to clipboard"
             >
               {copiedCode === blockId ? (
-                <CheckIcon className="w-4 h-4" />
+                <CheckIcon className="w-3 h-3 sm:w-4 sm:h-4" />
               ) : (
-                <DocumentDuplicateIcon className="w-4 h-4" />
+                <DocumentDuplicateIcon className="w-3 h-3 sm:w-4 sm:h-4" />
               )}
-              <span className="text-xs">
+              <span className="text-xs hidden sm:inline">
                 {copiedCode === blockId ? 'Copied!' : 'Copy'}
               </span>
             </button>
           </div>
-          <pre className="bg-neutral-900 text-neutral-100 p-4 rounded-b-lg overflow-x-auto text-sm">
+          <pre className="bg-neutral-900 text-neutral-100 p-3 sm:p-4 rounded-b-lg overflow-x-auto text-xs sm:text-sm">
             <code className={className} {...props}>
               {children}
             </code>
@@ -241,7 +241,7 @@ export default function MessageFormatter({ content, messageType, className = '' 
   const getTextColorClass = () => {
     switch (messageType) {
       case 'user':
-        return 'text-white';
+        return 'text-black';
       case 'assistant':
         return 'text-neutral-800';
       case 'system':
@@ -264,7 +264,6 @@ export default function MessageFormatter({ content, messageType, className = '' 
           components={components}
           remarkPlugins={[remarkGfm]}
           rehypePlugins={[rehypeHighlight, rehypeRaw]}
-          className="prose-sm max-w-none"
         >
           {content}
         </ReactMarkdown>
