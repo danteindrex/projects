@@ -77,13 +77,14 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
       const processedTemplates: Record<string, IntegrationTemplate> = {};
       
       Object.entries(templateData).forEach(([key, template]: [string, any]) => {
-        const processedTemplate: IntegrationTemplate = {
+        const processedTemplate: IntegrationTemplate & { iconComponent?: React.ReactNode } = {
           id: key.toLowerCase(),
           name: template.name,
           description: template.description,
           category: getCategoryFromType(key.toLowerCase()),
           integration_type: key.toLowerCase(),
-          icon: getIconForType(key.toLowerCase()),
+          icon: key.toLowerCase(),
+          iconComponent: getIconForType(key.toLowerCase()),
           config: {
             endpoints: template.endpoints || {},
             required_credentials: template.required_credentials || [],
@@ -117,18 +118,40 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
     return 'other';
   };
 
-  const getIconForType = (type: string): string => {
-    const iconMap: Record<string, string> = {
-      jira: '🎯', asana: '📋', trello: '📊', monday: '📅',
-      zendesk: '🎫', freshdesk: '🆘',
-      salesforce: '☁️', hubspot: '🧲',
-      github: '🐙', gitlab: '🦊',
-      slack: '💬',
-      aws: '☁️', azure: '🔵',
+  const getIconForType = (type: string): React.ReactNode => {
+    const logoMap: Record<string, string> = {
+      jira: '/integration-logos/jira.svg',
+      asana: '/integration-logos/asana.svg', 
+      trello: '/integration-logos/trello.svg',
+      zendesk: '/integration-logos/zendesk.svg',
+      salesforce: '/integration-logos/salesforce.svg',
+      github: '/integration-logos/github.svg',
+      slack: '/integration-logos/slack.svg',
+      hubspot: '/integration-logos/hubspot.svg'
+    };
+
+    if (logoMap[type]) {
+      return (
+        <img 
+          src={logoMap[type]} 
+          alt={`${type} logo`}
+          className="w-16 h-16 object-contain"
+        />
+      );
+    }
+
+    // Fallback to emoji for services without logos
+    const emojiMap: Record<string, string> = {
+      monday: '📅',
+      freshdesk: '🆘',
+      gitlab: '🦊',
+      aws: '☁️',
+      azure: '🔵',
       google_analytics: '📊',
       custom: '⚙️'
     };
-    return iconMap[type] || '⚙️';
+    
+    return <span className="text-6xl">{emojiMap[type] || '⚙️'}</span>;
   };
 
   const handleTemplateSelect = async (template: IntegrationTemplate) => {
@@ -400,12 +423,9 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
               {/* Custom Integration Highlight */}
               <div className="bg-gradient-to-br from-primary-50 to-teal-50 rounded-xl p-6 border border-primary-200">
                 <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-2xl">⚙️</span>
-                    <div>
-                      <h3 className="font-semibold text-neutral-900">Custom Integration</h3>
-                      <p className="text-sm text-neutral-600">Connect any REST API service</p>
-                    </div>
+                  <div>
+                    <h3 className="font-semibold text-neutral-900">Custom Integration</h3>
+                    <p className="text-sm text-neutral-600">Connect any REST API service</p>
                   </div>
                   <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full">
                     Flexible
@@ -440,33 +460,13 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
                           onClick={() => handleTemplateSelect(template)}
                           className="p-4 border-2 border-neutral-200 rounded-xl hover:border-primary-300 hover:shadow-lg transition-all duration-200 text-left group"
                         >
-                          <div className="flex items-start space-x-3">
-                            <span className="text-2xl group-hover:scale-110 transition-transform">
-                              {template.icon}
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-medium text-neutral-900 group-hover:text-primary-700 truncate">
-                                {template.name}
-                              </h4>
-                              <p className="text-sm text-neutral-600 line-clamp-2">
-                                {template.description}
-                              </p>
-                              <div className="mt-2 flex flex-wrap gap-1">
-                                {template.config.capabilities.slice(0, 2).map((capability) => (
-                                  <span
-                                    key={capability}
-                                    className="inline-block px-2 py-0.5 bg-neutral-100 text-neutral-600 text-xs rounded-full"
-                                  >
-                                    {capability}
-                                  </span>
-                                ))}
-                                {template.config.capabilities.length > 2 && (
-                                  <span className="inline-block px-2 py-0.5 bg-neutral-100 text-neutral-600 text-xs rounded-full">
-                                    +{template.config.capabilities.length - 2} more
-                                  </span>
-                                )}
-                              </div>
+                          <div className="flex flex-col items-center justify-center space-y-2">
+                            <div className="group-hover:scale-110 transition-transform">
+                              {(template as any).iconComponent || template.icon}
                             </div>
+                            <p className="text-xs text-neutral-600 text-center line-clamp-2">
+                              {template.description}
+                            </p>
                           </div>
                         </button>
                       ))}
@@ -491,7 +491,9 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
 
               {/* Selected Template Info */}
               <div className="bg-neutral-50 rounded-lg p-4 flex items-center space-x-3">
-                <span className="text-2xl">{selectedTemplate.icon}</span>
+                <div className="flex-shrink-0">
+                  {(selectedTemplate as any).iconComponent || selectedTemplate.icon}
+                </div>
                 <div>
                   <h3 className="font-medium text-neutral-900">{selectedTemplate.name}</h3>
                   <p className="text-sm text-neutral-600">{selectedTemplate.description}</p>

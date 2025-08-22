@@ -23,6 +23,10 @@ class User(BaseModel):
     # Relationships
     integrations = relationship("Integration", back_populates="owner")
     chat_sessions = relationship("ChatSession", back_populates="user")
+    # Note: New model relationships removed to avoid circular import issues
+    # tool_executions = relationship("ToolExecution", back_populates="user")
+    # streaming_events = relationship("StreamingEvent", back_populates="user")
+    # agent_activities = relationship("AgentActivity", back_populates="user")
     
     # Define indexes for better query performance
     __table_args__ = (

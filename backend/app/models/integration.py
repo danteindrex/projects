@@ -105,6 +105,10 @@ class Integration(TenantModel):
     owner_id = Column(Integer, ForeignKey("users.id"))
     owner = relationship("User", back_populates="integrations")
     oauth_states = relationship("OAuthState", back_populates="integration")
+    # Note: New model relationships commented to avoid circular imports
+    # tool_executions = relationship("ToolExecution", back_populates="integration")
+    # streaming_events = relationship("StreamingEvent", back_populates="integration")
+    # agent_activities = relationship("AgentActivity", back_populates="integration")
     
     # Define indexes for better query performance
     __table_args__ = (

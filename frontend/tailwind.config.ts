@@ -9,65 +9,55 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Professional green palette
+        // Scale360 Primary Palette
         primary: {
-          50: '#f0fdf4',
-          100: '#dcfce7',
-          200: '#bbf7d0',
-          300: '#86efac',
-          400: '#4ade80',
-          500: '#22c55e',
-          600: '#16a34a',
-          700: '#15803d',
-          800: '#166534',
-          900: '#14532d',
-          950: '#052e16',
-        },
-        // Teal accents
-        teal: {
           50: '#f0fdfa',
           100: '#ccfbf1',
           200: '#99f6e4',
-          300: '#5eead4',
-          400: '#2dd4bf',
-          500: '#14b8a6',
-          600: '#0d9488',
+          300: '#72dbcc', // Scale360 light
+          400: '#27cbb9', // Scale360 regular
+          500: '#508e85', // Scale360 medium
+          600: '#306059', // Scale360 dark
           700: '#0f766e',
           800: '#115e59',
           900: '#134e4a',
           950: '#042f2e',
         },
-        // Sea green
-        sea: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          200: '#bae6fd',
-          300: '#7dd3fc',
-          400: '#38bdf8',
-          500: '#0ea5e9',
-          600: '#0284c7',
-          700: '#0369a1',
-          800: '#075985',
-          900: '#0c4a6e',
-          950: '#082f49',
+        // Teal accents with Scale360 color
+        teal: {
+          50: '#f0fdfa',
+          100: '#ccfbf1',
+          200: '#99f6e4',
+          300: '#72dbcc',
+          400: '#27cbb9', // Scale360 teal accent
+          500: '#508e85',
+          600: '#306059',
+          700: '#0f766e',
+          800: '#115e59',
+          900: '#134e4a',
+          950: '#042f2e',
         },
-        // Neutral grays for professional look
+        // Scale360 Neutrals
         neutral: {
           50: '#fafafa',
           100: '#f5f5f5',
-          200: '#e5e5e5',
-          300: '#d4d4d4',
+          200: '#e8e8e8', // Scale360 light grey
+          300: '#cfcfcf', // Scale360 medium grey
           400: '#a3a3a3',
           500: '#737373',
           600: '#525252',
           700: '#404040',
-          800: '#262626',
+          800: '#242524', // Scale360 dark grey
           900: '#171717',
-          950: '#0a0a0a',
-        }
+          950: '#000000', // Scale360 black
+        },
+        // Scale360 Semantic Colors
+        background: '#ffffff',
+        foreground: '#000000',
+        'button-bg': '#32373c',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Figtree', 'Inter', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
       animation: {

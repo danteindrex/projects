@@ -1,52 +1,324 @@
+@import url('https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
 @import "tailwindcss";
 
 :root {
+  /* Scale360 Color System */
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #000000;
+  --primary-regular: #27cbb9;
+  --primary-light: #72dbcc;
+  --primary-medium: #508e85;
+  --primary-dark: #306059;
+  --white: #ffffff;
+  --black: #000000;
+  --dark-grey: #242524;
+  --medium-grey: #cfcfcf;
+  --light-grey: #e8e8e8;
+  --button-bg: #32373c;
+  
+  /* Scale360 Typography System */
+  --site-font: 'Figtree', 'Helvetica', 'Arial', sans-serif;
+  --font-bold: 600;
+  
+  /* Reduced Typography Scale for App Interface */
+  --font-h0: clamp(2.5rem, 4vw, 4rem);
+  --font-h1: clamp(2rem, 3vw, 3rem);
+  --font-h2: clamp(1.5rem, 2.5vw, 2.25rem);
+  --font-h3: clamp(1.25rem, 2vw, 1.75rem);
+  --font-h4: clamp(1.125rem, 1.5vw, 1.5rem);
+  --font-h5: clamp(1rem, 1.25vw, 1.25rem);
+  --font-h6: clamp(0.925rem, 1vw, 1.125rem);
+  --font-body: clamp(0.875rem, 1vw, 1rem);
+  --font-small: clamp(0.75rem, 0.875vw, 0.875rem);
+  
+  /* Scale360 Spacing System */
+  --page-padding: clamp(1.5rem, 8vw, 8.125rem);
+  --section-padding: clamp(3.25rem, 8.4vw, 11.85rem);
+  --column-gap: clamp(0.75rem, 3.18vw, 1.82rem);
+  
+  /* Scale360 Animation System */
+  --smooth: all 200ms ease-in-out;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-figtree);
   --font-mono: var(--font-geist-mono);
 }
 
-/* Force light theme for business platform */
-* {
-  color-scheme: light;
-}
-
 body {
-  background: #ffffff !important;
-  color: #171717;
-  font-family: Inter, system-ui, sans-serif;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--site-font);
+  font-size: var(--font-body);
+  line-height: 1.6;
   min-height: 100vh;
 }
 
-/* Professional styling for forms and inputs */
+/* Scale360 Typography Classes */
+h1 { font-size: var(--font-h1); font-weight: var(--font-bold); line-height: 1.1; }
+h2 { font-size: var(--font-h2); font-weight: var(--font-bold); line-height: 1.2; }
+h3 { font-size: var(--font-h3); font-weight: var(--font-bold); line-height: 1.3; }
+h4 { font-size: var(--font-h4); font-weight: var(--font-bold); line-height: 1.4; }
+h5 { font-size: var(--font-h5); font-weight: var(--font-bold); line-height: 1.4; }
+h6 { font-size: var(--font-h6); font-weight: var(--font-bold); line-height: 1.4; }
+
+.text-hero { font-size: var(--font-h0); font-weight: var(--font-bold); line-height: 1; }
+.text-small { font-size: var(--font-small); }
+
+/* Custom text selection styling */
+::selection {
+  background-color: rgba(39, 203, 185, 0.2);
+  color: var(--foreground);
+}
+
+::-moz-selection {
+  background-color: rgba(39, 203, 185, 0.2);
+  color: var(--foreground);
+}
+
+/* Scale360 Form System */
+input,
+textarea,
+select {
+  background: var(--white);
+  border: 1px solid var(--light-grey);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-family: var(--site-font);
+  font-size: var(--font-body);
+  color: var(--foreground);
+  transition: var(--smooth);
+}
+
 input:focus,
 textarea:focus,
 select:focus {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+  border-color: var(--primary-regular);
+  box-shadow: 0 0 0 3px rgba(39, 203, 185, 0.1);
 }
 
-/* Smooth transitions for interactive elements */
+input:hover,
+textarea:hover,
+select:hover {
+  border-color: var(--medium-grey);
+}
+
+/* Scale360 Smooth transitions for all interactive elements */
+*,
+*::before,
+*::after {
+  transition: var(--smooth);
+}
+
+/* Override for elements that need no transition */
+.no-transition {
+  transition: none !important;
+}
+
+/* Scale360 Button System */
+.btn-primary {
+  background: var(--button-bg);
+  color: var(--white);
+  border: none;
+  border-radius: 9999px;
+  padding: calc(.667em + 2px) calc(1.333em + 2px);
+  font-size: 1.125em;
+  font-weight: 500;
+  font-family: var(--site-font);
+  cursor: pointer;
+  transition: var(--smooth);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-primary:hover {
+  background: var(--dark-grey);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--primary-regular);
+  border: 2px solid var(--primary-regular);
+  border-radius: 9999px;
+  padding: calc(.667em + 2px) calc(1.333em + 2px);
+  font-size: 1.125em;
+  font-weight: 500;
+  font-family: var(--site-font);
+  cursor: pointer;
+  transition: var(--smooth);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-secondary:hover {
+  background: var(--primary-regular);
+  color: var(--white);
+  transform: translateY(-1px);
+}
+
+/* Scale360 button and link styling */
 button,
-a,
-input,
-textarea {
-  transition: all 0.2s ease-in-out;
+a {
+  transition: var(--smooth);
 }
 
-/* Professional shadows */
+/* Scale360 Card System */
+.card {
+  background: var(--white);
+  border: 1px solid var(--light-grey);
+  border-radius: 12px;
+  padding: var(--column-gap);
+  transition: var(--smooth);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+  border-color: var(--primary-light);
+}
+
+.card-dark {
+  background: var(--dark-grey);
+  color: var(--white);
+  border: 1px solid var(--medium-grey);
+}
+
+/* Scale360 Container System */
+.container-scale360 {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--page-padding);
+}
+
+.section-scale360 {
+  padding: var(--section-padding) 0;
+}
+
+/* Scale360 hover effects */
+.scale360-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+/* Scale360 Navigation System */
+.nav-scale360 {
+  background: var(--white);
+  border-bottom: 1px solid var(--light-grey);
+  padding: 1rem 0;
+}
+
+.nav-item {
+  position: relative;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  transition: var(--smooth);
+  color: var(--foreground);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.nav-item:hover {
+  color: var(--primary-regular);
+  background-color: rgba(39, 203, 185, 0.1);
+}
+
+.nav-item.active {
+  color: var(--primary-regular);
+  font-weight: 600;
+}
+
+/* Scale360 container hover effect */
+.container-hover {
+  transition: var(--smooth);
+  cursor: pointer;
+}
+
+.container-hover:hover {
+  background-color: rgba(39, 203, 185, 0.05);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(39, 203, 185, 0.15);
+}
+
+/* Continuous scrolling animation */
+@keyframes scroll-right {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-scroll-right {
+  animation: scroll-right 30s linear infinite;
+}
+
+/* Scale360 Text Animations */
+.text-reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  animation: textReveal 0.8s ease-out forwards;
+}
+
+.text-reveal-delay-1 {
+  animation-delay: 0.2s;
+}
+
+.text-reveal-delay-2 {
+  animation-delay: 0.4s;
+}
+
+@keyframes textReveal {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scale360 heading break animation */
+.heading-line {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(50px);
+}
+
+.heading-line.animate {
+  animation: headingLineReveal 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.heading-line:nth-child(1) { animation-delay: 0s; }
+.heading-line:nth-child(2) { animation-delay: 0.15s; }
+
+@keyframes headingLineReveal {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scale360 Shadow System */
 .shadow-soft {
-  box-shadow: 0 2px 15px -3px rgba(0, 0, 0, 0.07), 0 10px 20px -2px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 .shadow-medium {
-  box-shadow: 0 4px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+.shadow-large {
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.06);
+}
+
+.shadow-hover {
+  box-shadow: 0 8px 25px rgba(39, 203, 185, 0.15), 0 4px 8px rgba(0, 0, 0, 0.08);
 }
 
 /* Toast animations */
@@ -79,6 +351,69 @@ textarea {
   }
 }
 
+/* AI Thinking animations */
+@keyframes thinking-pulse {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(0.8);
+    box-shadow: 0 0 0 rgba(39, 203, 185, 0.3);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+    box-shadow: 0 0 20px rgba(39, 203, 185, 0.6);
+  }
+}
+
+@keyframes thinking-wave {
+  0%, 60%, 100% {
+    transform: translateY(0px);
+  }
+  30% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-thinking-pulse {
+  animation: thinking-pulse 2s ease-in-out infinite;
+}
+
+.animate-thinking-wave {
+  animation: thinking-wave 1.4s ease-in-out infinite;
+}
+
+/* Staggered bounce animation for thinking dots */
+.thinking-dot-1 {
+  animation: thinking-wave 1.4s ease-in-out infinite;
+  animation-delay: 0s;
+}
+
+.thinking-dot-2 {
+  animation: thinking-wave 1.4s ease-in-out infinite;
+  animation-delay: 0.2s;
+}
+
+.thinking-dot-3 {
+  animation: thinking-wave 1.4s ease-in-out infinite;
+  animation-delay: 0.4s;
+}
+
+/* Smooth fade-in for new messages */
+@keyframes message-appear {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-message-appear {
+  animation: message-appear 0.3s ease-out;
+}
+
 /* Ensure proper contrast for accessibility */
 .bg-primary-50 {
   background-color: #f0fdf4;
@@ -104,6 +439,6 @@ button:disabled {
 
 /* Focus indicators for accessibility */
 *:focus-visible {
-  outline: 2px solid #16a34a;
+  outline: 2px solid #27cbb9;
   outline-offset: 2px;
 }

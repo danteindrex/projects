@@ -20,6 +20,7 @@ const editSchema = z.object({
   rate_limit: z.number().min(1).optional().or(z.literal(0)),
   timeout: z.number().min(1).max(300).optional().or(z.literal(0)),
   status: z.enum(['active', 'inactive', 'error', 'pending', 'configured']),
+  // Generic credentials (for backward compatibility)
   api_key: z.string().optional(),
   username: z.string().optional(),
   password: z.string().optional(),
@@ -32,6 +33,14 @@ const editSchema = z.object({
   subscription_id: z.string().optional(),
   region: z.string().optional(),
   refresh_token: z.string().optional(),
+  // Integration-specific fields
+  access_token: z.string().optional(), // GitHub, HubSpot
+  bot_token: z.string().optional(), // Slack
+  domain: z.string().optional(), // Jira, Zendesk subdomain
+  email: z.string().optional(), // Jira, Zendesk
+  subdomain: z.string().optional(), // Zendesk
+  security_token: z.string().optional(), // Salesforce
+  sandbox: z.boolean().optional(), // Salesforce
 });
 
 type EditFormData = z.infer<typeof editSchema>;
@@ -75,11 +84,43 @@ export function IntegrationEditForm({ integration, onSave, onCancel }: Integrati
       subscription_id: '',
       region: '',
       refresh_token: '',
+      // Integration-specific fields
+      access_token: '',
+      bot_token: '',
+      domain: '',
+      email: '',
+      subdomain: '',
+      security_token: '',
+      sandbox: false,
     }
   });
 
   const integrationIcon = INTEGRATION_ICONS[integration.integration_type as keyof typeof INTEGRATION_ICONS] || '⚙️';
   const integrationName = INTEGRATION_NAMES[integration.integration_type as keyof typeof INTEGRATION_NAMES] || integration.integration_type;
+  const integrationType = integration.integration_type;
+
+  // Helper function to determine which fields to show for each integration
+  const getRequiredFields = (type: string) => {
+    switch (type) {
+      case 'github':
+        return ['access_token'];
+      case 'jira':
+        return ['domain', 'email', 'api_token'];
+      case 'slack':
+        return ['bot_token'];
+      case 'hubspot':
+        return ['access_token'];
+      case 'zendesk':
+        return ['subdomain', 'email', 'api_token'];
+      case 'salesforce':
+        return ['username', 'password', 'security_token', 'client_id', 'client_secret', 'sandbox'];
+      default:
+        return [];
+    }
+  };
+
+  const requiredFields = getRequiredFields(integrationType);
+  const showGenericFields = requiredFields.length === 0;
 
   const onSubmit = async (data: EditFormData) => {
     setIsLoading(true);
@@ -87,11 +128,12 @@ export function IntegrationEditForm({ integration, onSave, onCancel }: Integrati
 
     try {
       // Prepare credentials object - only include non-empty values
-      const credentials: Record<string, string> = { ...integration.credentials };
+      const credentials: Record<string, string | boolean> = { ...integration.credentials };
       const credentialFields = [
         'api_key', 'username', 'password', 'api_token', 'access_key', 
         'secret_key', 'client_id', 'client_secret', 'tenant_id', 
-        'subscription_id', 'region', 'refresh_token'
+        'subscription_id', 'region', 'refresh_token', 'access_token',
+        'bot_token', 'domain', 'email', 'subdomain', 'security_token'
       ];
 
       credentialFields.forEach(field => {
@@ -100,6 +142,11 @@ export function IntegrationEditForm({ integration, onSave, onCancel }: Integrati
           credentials[field] = value.trim();
         }
       });
+
+      // Handle boolean fields separately
+      if (data.sandbox !== undefined) {
+        credentials['sandbox'] = data.sandbox;
+      }
 
       const updateData: IntegrationUpdate = {
         name: data.name,
@@ -280,107 +327,338 @@ export function IntegrationEditForm({ integration, onSave, onCancel }: Integrati
           </div>
 
           {showCredentials && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-neutral-50 rounded-lg">
-              <div className="col-span-full">
-                <p className="text-sm text-neutral-600 mb-4">
+            <div className="p-4 bg-neutral-50 rounded-lg">
+              <div className="mb-4">
+                <p className="text-sm text-neutral-600 mb-2">
                   Only enter credentials that you want to update. Leave fields empty to keep existing values.
                 </p>
+                {requiredFields.length > 0 && (
+                  <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded border">
+                    <strong>{integrationName}</strong> requires: {requiredFields.map(field => {
+                      switch (field) {
+                        case 'access_token': return integrationType === 'github' ? 'Personal Access Token' : 'Access Token';
+                        case 'bot_token': return 'Bot User OAuth Token';
+                        case 'domain': return 'Jira Domain';
+                        case 'subdomain': return 'Zendesk Subdomain';
+                        case 'email': return 'Email Address';
+                        case 'api_token': return 'API Token';
+                        case 'security_token': return 'Security Token';
+                        case 'sandbox': return 'Sandbox Mode';
+                        default: return field.replace('_', ' ');
+                      }
+                    }).join(', ')}
+                  </div>
+                )}
               </div>
 
-              <div>
-                <label htmlFor="api_key" className="block text-sm font-medium text-neutral-700 mb-2">
-                  API Key
-                </label>
-                <input
-                  {...register('api_key')}
-                  type="password"
-                  id="api_key"
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
-              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* GitHub-specific fields */}
+                {integrationType === 'github' && (
+                  <div className="col-span-full">
+                    <label htmlFor="access_token" className="block text-sm font-medium text-neutral-700 mb-2">
+                      Personal Access Token *
+                    </label>
+                    <input
+                      {...register('access_token')}
+                      type="password"
+                      id="access_token"
+                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                    />
+                    <p className="text-xs text-neutral-500 mt-1">Generate at GitHub Settings → Developer settings → Personal access tokens</p>
+                  </div>
+                )}
 
-              <div>
-                <label htmlFor="api_token" className="block text-sm font-medium text-neutral-700 mb-2">
-                  API Token
-                </label>
-                <input
-                  {...register('api_token')}
-                  type="password"
-                  id="api_token"
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
-              </div>
+                {/* Jira-specific fields */}
+                {integrationType === 'jira' && (
+                  <>
+                    <div>
+                      <label htmlFor="domain" className="block text-sm font-medium text-neutral-700 mb-2">
+                        Jira Domain *
+                      </label>
+                      <input
+                        {...register('domain')}
+                        type="text"
+                        id="domain"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        placeholder="yourcompany.atlassian.net"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="email" className="block text-sm font-medium text-neutral-700 mb-2">
+                        Email Address *
+                      </label>
+                      <input
+                        {...register('email')}
+                        type="email"
+                        id="email"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        placeholder="user@company.com"
+                      />
+                    </div>
+                    <div className="col-span-full">
+                      <label htmlFor="api_token" className="block text-sm font-medium text-neutral-700 mb-2">
+                        API Token *
+                      </label>
+                      <input
+                        {...register('api_token')}
+                        type="password"
+                        id="api_token"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
+                      <p className="text-xs text-neutral-500 mt-1">Generate at Jira Settings → Security → API tokens</p>
+                    </div>
+                  </>
+                )}
 
-              <div>
-                <label htmlFor="username" className="block text-sm font-medium text-neutral-700 mb-2">
-                  Username
-                </label>
-                <input
-                  {...register('username')}
-                  type="text"
-                  id="username"
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
-              </div>
+                {/* Slack-specific fields */}
+                {integrationType === 'slack' && (
+                  <div className="col-span-full">
+                    <label htmlFor="bot_token" className="block text-sm font-medium text-neutral-700 mb-2">
+                      Bot User OAuth Token *
+                    </label>
+                    <input
+                      {...register('bot_token')}
+                      type="password"
+                      id="bot_token"
+                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      placeholder="xoxb-xxxxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxx"
+                    />
+                    <p className="text-xs text-neutral-500 mt-1">Create Slack app and get Bot Token from OAuth & Permissions</p>
+                  </div>
+                )}
 
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-neutral-700 mb-2">
-                  Password
-                </label>
-                <input
-                  {...register('password')}
-                  type="password"
-                  id="password"
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
-              </div>
+                {/* HubSpot-specific fields */}
+                {integrationType === 'hubspot' && (
+                  <div className="col-span-full">
+                    <label htmlFor="access_token" className="block text-sm font-medium text-neutral-700 mb-2">
+                      Private App Access Token *
+                    </label>
+                    <input
+                      {...register('access_token')}
+                      type="password"
+                      id="access_token"
+                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                    <p className="text-xs text-neutral-500 mt-1">Create Private App in HubSpot Settings → Integrations → Private Apps</p>
+                  </div>
+                )}
 
-              <div>
-                <label htmlFor="client_id" className="block text-sm font-medium text-neutral-700 mb-2">
-                  Client ID
-                </label>
-                <input
-                  {...register('client_id')}
-                  type="text"
-                  id="client_id"
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
-              </div>
+                {/* Zendesk-specific fields */}
+                {integrationType === 'zendesk' && (
+                  <>
+                    <div>
+                      <label htmlFor="subdomain" className="block text-sm font-medium text-neutral-700 mb-2">
+                        Zendesk Subdomain *
+                      </label>
+                      <input
+                        {...register('subdomain')}
+                        type="text"
+                        id="subdomain"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        placeholder="yourcompany"
+                      />
+                      <p className="text-xs text-neutral-500 mt-1">From yourcompany.zendesk.com</p>
+                    </div>
+                    <div>
+                      <label htmlFor="email" className="block text-sm font-medium text-neutral-700 mb-2">
+                        Email Address *
+                      </label>
+                      <input
+                        {...register('email')}
+                        type="email"
+                        id="email"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        placeholder="user@company.com"
+                      />
+                    </div>
+                    <div className="col-span-full">
+                      <label htmlFor="api_token" className="block text-sm font-medium text-neutral-700 mb-2">
+                        API Token *
+                      </label>
+                      <input
+                        {...register('api_token')}
+                        type="password"
+                        id="api_token"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
+                      <p className="text-xs text-neutral-500 mt-1">Generate at Zendesk Admin → Channels → API</p>
+                    </div>
+                  </>
+                )}
 
-              <div>
-                <label htmlFor="client_secret" className="block text-sm font-medium text-neutral-700 mb-2">
-                  Client Secret
-                </label>
-                <input
-                  {...register('client_secret')}
-                  type="password"
-                  id="client_secret"
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
-              </div>
+                {/* Salesforce-specific fields */}
+                {integrationType === 'salesforce' && (
+                  <>
+                    <div>
+                      <label htmlFor="username" className="block text-sm font-medium text-neutral-700 mb-2">
+                        Username *
+                      </label>
+                      <input
+                        {...register('username')}
+                        type="text"
+                        id="username"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="password" className="block text-sm font-medium text-neutral-700 mb-2">
+                        Password *
+                      </label>
+                      <input
+                        {...register('password')}
+                        type="password"
+                        id="password"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="security_token" className="block text-sm font-medium text-neutral-700 mb-2">
+                        Security Token *
+                      </label>
+                      <input
+                        {...register('security_token')}
+                        type="password"
+                        id="security_token"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="client_id" className="block text-sm font-medium text-neutral-700 mb-2">
+                        Client ID *
+                      </label>
+                      <input
+                        {...register('client_id')}
+                        type="text"
+                        id="client_id"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="client_secret" className="block text-sm font-medium text-neutral-700 mb-2">
+                        Client Secret *
+                      </label>
+                      <input
+                        {...register('client_secret')}
+                        type="password"
+                        id="client_secret"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="sandbox" className="flex items-center space-x-2 text-sm font-medium text-neutral-700">
+                        <input
+                          {...register('sandbox')}
+                          type="checkbox"
+                          id="sandbox"
+                          className="rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        <span>Sandbox Environment</span>
+                      </label>
+                    </div>
+                  </>
+                )}
 
-              <div>
-                <label htmlFor="access_key" className="block text-sm font-medium text-neutral-700 mb-2">
-                  Access Key
-                </label>
-                <input
-                  {...register('access_key')}
-                  type="password"
-                  id="access_key"
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
-              </div>
+                {/* Generic fields for other integrations */}
+                {showGenericFields && (
+                  <>
+                    <div>
+                      <label htmlFor="api_key" className="block text-sm font-medium text-neutral-700 mb-2">
+                        API Key
+                      </label>
+                      <input
+                        {...register('api_key')}
+                        type="password"
+                        id="api_key"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
+                    </div>
 
-              <div>
-                <label htmlFor="secret_key" className="block text-sm font-medium text-neutral-700 mb-2">
-                  Secret Key
-                </label>
-                <input
-                  {...register('secret_key')}
-                  type="password"
-                  id="secret_key"
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
+                    <div>
+                      <label htmlFor="api_token" className="block text-sm font-medium text-neutral-700 mb-2">
+                        API Token
+                      </label>
+                      <input
+                        {...register('api_token')}
+                        type="password"
+                        id="api_token"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="username" className="block text-sm font-medium text-neutral-700 mb-2">
+                        Username
+                      </label>
+                      <input
+                        {...register('username')}
+                        type="text"
+                        id="username"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="password" className="block text-sm font-medium text-neutral-700 mb-2">
+                        Password
+                      </label>
+                      <input
+                        {...register('password')}
+                        type="password"
+                        id="password"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="client_id" className="block text-sm font-medium text-neutral-700 mb-2">
+                        Client ID
+                      </label>
+                      <input
+                        {...register('client_id')}
+                        type="text"
+                        id="client_id"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="client_secret" className="block text-sm font-medium text-neutral-700 mb-2">
+                        Client Secret
+                      </label>
+                      <input
+                        {...register('client_secret')}
+                        type="password"
+                        id="client_secret"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="access_key" className="block text-sm font-medium text-neutral-700 mb-2">
+                        Access Key
+                      </label>
+                      <input
+                        {...register('access_key')}
+                        type="password"
+                        id="access_key"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="secret_key" className="block text-sm font-medium text-neutral-700 mb-2">
+                        Secret Key
+                      </label>
+                      <input
+                        {...register('secret_key')}
+                        type="password"
+                        id="secret_key"
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}

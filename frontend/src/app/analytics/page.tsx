@@ -9,6 +9,7 @@ import IntegrationMonitoringPanel from '@/components/monitoring/IntegrationMonit
 import RealTimeActivityFeed from '@/components/monitoring/RealTimeActivityFeed';
 import AlertsNotifications from '@/components/monitoring/AlertsNotifications';
 import KafkaMonitoringWidget from '@/components/monitoring/KafkaMonitoringWidget';
+import IntegrationAnalytics from '@/components/analytics/IntegrationAnalytics';
 import { 
   ChartBarIcon, 
   ArrowTrendingUpIcon,
@@ -22,7 +23,7 @@ import {
 export default function AnalyticsPage() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'overview' | 'integrations' | 'realtime' | 'alerts' | 'kafka'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'integrations' | 'analytics' | 'realtime' | 'alerts' | 'kafka'>('overview');
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -48,9 +49,10 @@ export default function AnalyticsPage() {
   const tabs = [
     { id: 'overview', name: 'System Health', icon: ChartBarIcon },
     { id: 'integrations', name: 'Integrations', icon: Cog6ToothIcon },
+    { id: 'analytics', name: 'Integration Analytics', icon: ArrowTrendingUpIcon },
     { id: 'realtime', name: 'Live Activity', icon: EyeIcon },
     { id: 'alerts', name: 'Alerts', icon: ExclamationTriangleIcon },
-    { id: 'kafka', name: 'Kafka', icon: ArrowTrendingUpIcon }
+    { id: 'kafka', name: 'Kafka', icon: ClockIcon }
   ];
 
   return (
@@ -97,6 +99,10 @@ export default function AnalyticsPage() {
 
             {activeTab === 'integrations' && (
               <IntegrationMonitoringPanel />
+            )}
+
+            {activeTab === 'analytics' && (
+              <IntegrationAnalytics />
             )}
 
             {activeTab === 'realtime' && (

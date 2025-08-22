@@ -14,6 +14,7 @@ from app.core.kafka_service import publish_agent_event
 from app.models.agent import Agent, AgentType, AgentStatus
 from app.models.integration import Integration
 from app.db.database import get_db_session
+from app.tools.registry import tool_registry
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -91,28 +92,40 @@ class CrewAIService:
         try:
             agent_id = f"integration_{integration.id}"
             
+            # Load tools for this integration
+            tools = await tool_registry.load_tools_for_integration(integration)
+            crewai_tools = tool_registry.get_crewai_tools_for_integration(str(integration.id))
+            
             # Create specialized agent based on integration type
-            if integration.type.lower() == 'jira':
-                agent = self._create_jira_agent(integration)
-            elif integration.type.lower() == 'salesforce':
-                agent = self._create_salesforce_agent(integration)
-            elif integration.type.lower() == 'zendesk':
-                agent = self._create_zendesk_agent(integration)
-            elif integration.type.lower() == 'slack':
-                agent = self._create_slack_agent(integration)
+            if integration.integration_type.lower() == 'jira':
+                agent = self._create_jira_agent(integration, crewai_tools)
+            elif integration.integration_type.lower() == 'salesforce':
+                agent = self._create_salesforce_agent(integration, crewai_tools)
+            elif integration.integration_type.lower() == 'zendesk':
+                agent = self._create_zendesk_agent(integration, crewai_tools)
+            elif integration.integration_type.lower() == 'slack':
+                agent = self._create_slack_agent(integration, crewai_tools)
+            elif integration.integration_type.lower() == 'github':
+                agent = self._create_github_agent(integration, crewai_tools)
+            elif integration.integration_type.lower() == 'hubspot':
+                agent = self._create_hubspot_agent(integration, crewai_tools)
             else:
-                agent = self._create_generic_integration_agent(integration)
+                agent = self._create_generic_integration_agent(integration, crewai_tools)
             
             self.integration_agents[agent_id] = agent
             
-            log_agent_event(agent_id, "agent_created", integration_id=integration.id)
-            await publish_agent_event(agent_id, "agent_created", {"integration_id": integration.id})
+            log_agent_event(agent_id, "agent_created", integration_id=integration.id, tools_count=len(tools))
+            await publish_agent_event(agent_id, "agent_created", {
+                "integration_id": integration.id, 
+                "tools_loaded": len(tools),
+                "tool_names": [tool.tool_name for tool in tools]
+            })
             
         except Exception as e:
             logger.error(f"Failed to create integration agent for {integration.name}: {e}")
             raise
     
-    def _create_jira_agent(self, integration: Integration) -> CrewAIAgent:
+    def _create_jira_agent(self, integration: Integration, tools: List = None) -> CrewAIAgent:
         """Create a specialized Jira agent"""
         return CrewAIAgent(
             role="Jira Integration Specialist",
@@ -120,12 +133,21 @@ class CrewAIService:
             backstory="""You are an expert in Jira project management and issue tracking. 
             You can create, update, and query issues, manage sprints, generate reports, 
             and help users navigate complex project workflows. You understand Jira's 
-            data structures and can provide detailed insights about project status.""",
+            data structures and can provide detailed insights about project status.
+            
+            You have access to real Jira API tools that allow you to:
+            - Search for issues using JQL queries
+            - Create new issues with proper fields
+            - Update existing issues including status transitions
+            - Get project information and statistics
+            
+            Always use your tools to provide accurate, real-time data from Jira.""",
             verbose=True,
-            llm=self.llm
+            llm=self.llm,
+            tools=tools or []
         )
     
-    def _create_salesforce_agent(self, integration: Integration) -> CrewAIAgent:
+    def _create_salesforce_agent(self, integration: Integration, tools: List = None) -> CrewAIAgent:
         """Create a specialized Salesforce agent"""
         return CrewAIAgent(
             role="Salesforce CRM Expert",
@@ -133,12 +155,21 @@ class CrewAIService:
             backstory="""You are a Salesforce CRM specialist who excels at managing 
             customer relationships, tracking sales pipelines, and generating insights 
             from CRM data. You understand the sales process and can help users 
-            optimize their customer engagement strategies.""",
+            optimize their customer engagement strategies.
+            
+            You have access to real Salesforce API tools that allow you to:
+            - Query records using SOQL (Accounts, Contacts, Opportunities, Leads)
+            - Create new records in any Salesforce object
+            - Update existing records with new information
+            - Analyze sales pipelines and customer data
+            
+            Always use your tools to provide accurate, real-time data from Salesforce.""",
             verbose=True,
-            llm=self.llm
+            llm=self.llm,
+            tools=tools or []
         )
     
-    def _create_zendesk_agent(self, integration: Integration) -> CrewAIAgent:
+    def _create_zendesk_agent(self, integration: Integration, tools: List = None) -> CrewAIAgent:
         """Create a specialized Zendesk agent"""
         return CrewAIAgent(
             role="Customer Support Specialist",
@@ -146,12 +177,21 @@ class CrewAIService:
             backstory="""You are a customer support expert who specializes in ticket 
             management, customer communication, and support analytics. You excel at 
             prioritizing tickets, tracking resolution metrics, and identifying 
-            opportunities to improve customer satisfaction.""",
+            opportunities to improve customer satisfaction.
+            
+            You have access to real Zendesk API tools that allow you to:
+            - Search for tickets by status, priority, or custom queries
+            - Create new support tickets with proper categorization
+            - Update existing tickets including status changes and comments
+            - Analyze support metrics and customer satisfaction data
+            
+            Always use your tools to provide accurate, real-time data from Zendesk.""",
             verbose=True,
-            llm=self.llm
+            llm=self.llm,
+            tools=tools or []
         )
     
-    def _create_slack_agent(self, integration: Integration) -> CrewAIAgent:
+    def _create_slack_agent(self, integration: Integration, tools: List = None) -> CrewAIAgent:
         """Create a specialized Slack agent"""
         return CrewAIAgent(
             role="Team Communication Facilitator",
@@ -159,12 +199,21 @@ class CrewAIService:
             backstory="""You are a team collaboration expert who helps manage 
             communication channels, automate notifications, and facilitate 
             productive team interactions. You understand how to use Slack 
-            effectively for different types of organizational communication.""",
+            effectively for different types of organizational communication.
+            
+            You have access to real Slack API tools that allow you to:
+            - Send messages to channels or direct messages
+            - Get channel lists and member information
+            - Retrieve message history from channels
+            - Manage team communications and notifications
+            
+            Always use your tools to provide accurate, real-time interaction with Slack.""",
             verbose=True,
-            llm=self.llm
+            llm=self.llm,
+            tools=tools or []
         )
     
-    def _create_generic_integration_agent(self, integration: Integration) -> CrewAIAgent:
+    def _create_generic_integration_agent(self, integration: Integration, tools: List = None) -> CrewAIAgent:
         """Create a generic integration agent"""
         return CrewAIAgent(
             role=f"{integration.name} Integration Agent",
@@ -172,9 +221,13 @@ class CrewAIService:
             backstory=f"""You are an expert in {integration.name} integration and API management. 
             You understand how to interact with {integration.name} systems, process data, 
             and provide meaningful insights to users. You excel at translating business 
-            requirements into actionable system operations.""",
+            requirements into actionable system operations.
+            
+            You have access to real API tools that allow you to interact with {integration.name} 
+            in real-time. Always use your available tools to provide accurate, up-to-date information.""",
             verbose=True,
-            llm=self.llm
+            llm=self.llm,
+            tools=tools or []
         )
     
     async def process_query(self, query: str, user_id: str, session_id: str) -> Dict[str, Any]:
@@ -586,7 +639,7 @@ class CrewAIService:
         else:
             return self._create_generic_integration_agent(integration)
     
-    def _create_github_agent(self, integration: Integration) -> CrewAIAgent:
+    def _create_github_agent(self, integration: Integration, tools: List = None) -> CrewAIAgent:
         """Create a specialized GitHub agent"""
         return CrewAIAgent(
             role="GitHub Repository Manager",
@@ -594,21 +647,39 @@ class CrewAIService:
             backstory=f"""You are a GitHub specialist managing the {integration.name} integration. 
             You excel at repository management, code review processes, issue tracking, and 
             development workflow automation. You understand Git workflows, branching strategies, 
-            and collaborative development practices.""",
+            and collaborative development practices.
+            
+            You have access to real GitHub API tools that allow you to:
+            - Search repositories, issues, pull requests, and users
+            - Create new issues in repositories
+            - Get detailed repository information including commits and statistics
+            - Manage development workflows and collaboration
+            
+            Always use your tools to provide accurate, real-time data from GitHub.""",
             verbose=True,
-            llm=self.llm
+            llm=self.llm,
+            tools=tools or []
         )
     
-    def _create_hubspot_agent(self, integration: Integration) -> CrewAIAgent:
+    def _create_hubspot_agent(self, integration: Integration, tools: List = None) -> CrewAIAgent:
         """Create a specialized HubSpot agent"""
         return CrewAIAgent(
             role="HubSpot Marketing & CRM Specialist",
             goal="Manage HubSpot marketing campaigns, lead generation, and customer relationship data",
             backstory=f"""You are a HubSpot expert managing the {integration.name} integration. 
             You specialize in inbound marketing, lead nurturing, sales pipeline management, 
-            and marketing automation. You understand customer journey mapping and conversion optimization.""",
+            and marketing automation. You understand customer journey mapping and conversion optimization.
+            
+            You have access to real HubSpot API tools that allow you to:
+            - Search and retrieve contacts by various criteria
+            - Create new contacts with detailed information
+            - Search and manage deals in the sales pipeline
+            - Analyze marketing and sales performance data
+            
+            Always use your tools to provide accurate, real-time data from HubSpot.""",
             verbose=True,
-            llm=self.llm
+            llm=self.llm,
+            tools=tools or []
         )
     
     def _create_asana_agent(self, integration: Integration) -> CrewAIAgent:

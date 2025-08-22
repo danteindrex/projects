@@ -245,10 +245,19 @@ export default function ChatInterface() {
   };
 
   const simulateAIResponse = async (userInput: string) => {
-    // Simulate thinking phase
+    // Simulate thinking phase with more realistic timing
     setIsThinking(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Vary thinking time based on query complexity
+    const baseThinkingTime = 1200;
+    const complexityBonus = Math.min(userInput.length * 20, 1000); // Up to 1 extra second for longer queries
+    const thinkingTime = baseThinkingTime + complexityBonus + Math.random() * 800; // Add some randomness
+    
+    await new Promise(resolve => setTimeout(resolve, thinkingTime));
     setIsThinking(false);
+
+    // Small delay between thinking and tool calls for natural flow
+    await new Promise(resolve => setTimeout(resolve, 300));
 
     // Simulate tool calling
     if (userInput.toLowerCase().includes('jira') || userInput.toLowerCase().includes('issue')) {
@@ -259,6 +268,9 @@ export default function ChatInterface() {
 
     // Generate response
     const response = generateAIResponse(userInput);
+    
+    // Small delay before streaming for natural flow
+    await new Promise(resolve => setTimeout(resolve, 200));
     
     // Simulate streaming
     await streamResponse(response);
@@ -331,7 +343,12 @@ export default function ChatInterface() {
         }
       });
 
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Variable delay for more natural typing rhythm
+      const baseDelay = 50;
+      const randomDelay = Math.random() * 100; // 0-100ms random variation
+      const punctuationDelay = ['.', '!', '?', ','].includes(words[i].slice(-1)) ? 200 : 0;
+      
+      await new Promise(resolve => setTimeout(resolve, baseDelay + randomDelay + punctuationDelay));
     }
 
     // Finalize the message
@@ -368,13 +385,13 @@ export default function ChatInterface() {
       case 'user':
         return 'bg-green-200 text-black ml-auto';
       case 'assistant':
-        return 'bg-white border border-neutral-200';
+        return 'bg-white border border-neutral-200 text-neutral-900';
       case 'tool_call':
-        return 'bg-blue-50 border border-blue-200';
+        return 'bg-blue-50 border border-blue-200 text-blue-900';
       case 'thinking':
-        return 'bg-yellow-50 border border-yellow-200';
+        return 'bg-yellow-50 border border-yellow-200 text-yellow-900';
       default:
-        return 'bg-neutral-50 border border-neutral-200';
+        return 'bg-neutral-50 border border-neutral-200 text-neutral-900';
     }
   };
 
@@ -437,7 +454,7 @@ export default function ChatInterface() {
             key={message.id}
             className={`flex items-start space-x-3 ${
               message.type === 'user' ? 'justify-end' : 'justify-start'
-            }`}
+            } animate-message-appear`}
           >
             {message.type !== 'user' && (
               <div className="flex-shrink-0">
@@ -467,14 +484,25 @@ export default function ChatInterface() {
           </div>
         ))}
 
-        {/* Thinking indicator */}
+        {/* AI Thinking indicator with fancy animation */}
         {isThinking && (
-          <div className="flex items-start space-x-3 justify-start">
+          <div className="flex items-start space-x-3 justify-start animate-slide-up">
             <div className="flex-shrink-0">
-              <ClockIcon className="w-8 h-8 text-yellow-600" />
+              <div className="w-8 h-8 bg-teal-600 rounded-full flex items-center justify-center text-white text-sm font-medium relative animate-thinking-pulse">
+                AI
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-teal-400 rounded-full animate-pulse"></div>
+              </div>
             </div>
-            <div className="bg-yellow-50 border border-yellow-200 px-4 py-2 rounded-lg shadow-soft">
-              <p className="text-sm text-yellow-800">Thinking...</p>
+            <div className="bg-white border border-neutral-200 px-4 py-3 rounded-lg shadow-soft max-w-xs lg:max-w-md">
+              <div className="flex items-center space-x-3">
+                <div className="flex space-x-1 items-end">
+                  <div className="w-2 h-2 bg-teal-500 rounded-full thinking-dot-1"></div>
+                  <div className="w-2 h-2 bg-teal-500 rounded-full thinking-dot-2"></div>
+                  <div className="w-2 h-2 bg-teal-500 rounded-full thinking-dot-3"></div>
+                </div>
+                <p className="text-sm text-neutral-700 font-medium">AI is thinking...</p>
+              </div>
+              <div className="mt-2 text-xs text-neutral-500">Processing your request</div>
             </div>
           </div>
         )}
@@ -538,9 +566,18 @@ export default function ChatInterface() {
           </p>
           
           {isLoading && (
-            <p className="text-xs text-neutral-500 mt-2 text-center" aria-live="polite">
-              AI is processing your request...
-            </p>
+            <div className="flex items-center justify-center mt-3 animate-slide-up" aria-live="polite">
+              <div className="flex space-x-1 items-center">
+                <div className="flex space-x-1">
+                  <div className="w-1.5 h-1.5 bg-teal-500 rounded-full thinking-dot-1"></div>
+                  <div className="w-1.5 h-1.5 bg-teal-500 rounded-full thinking-dot-2"></div>
+                  <div className="w-1.5 h-1.5 bg-teal-500 rounded-full thinking-dot-3"></div>
+                </div>
+                <p className="text-xs text-neutral-500 ml-2">
+                  AI is processing your request...
+                </p>
+              </div>
+            </div>
           )}
         </form>
       </div>
