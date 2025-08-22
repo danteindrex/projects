@@ -26,8 +26,6 @@ logger = logging.getLogger(__name__)
 class StreamingEvent:
     """Streaming event types."""
     TOKEN = "token"
-    AGENT_EVENT = "agent_event" 
-    TOOL_CALL = "tool_call"
     THINKING = "thinking"
     FINAL = "final"
     ERROR = "error"
@@ -42,7 +40,6 @@ class WebSocketManager:
         
     async def connect(self, websocket: WebSocket, session_id: str) -> str:
         """Connect a WebSocket client."""
-        await websocket.accept()
         connection_id = str(uuid.uuid4())
         
         self.active_connections[connection_id] = websocket
@@ -97,101 +94,61 @@ class StreamingCrewAIService:
         session_id: str,
         db: Session
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        """Process query with real-time streaming."""
+        """Process query with CrewAI agents."""
         
         try:
-            # Start processing
-            await self._emit_stream_event(session_id, {
+            # Debug: First yield to test streaming
+            yield {
+                "type": "debug",
+                "content": "Streaming service called successfully!",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+            # Initialize CrewAI crew
+            yield {
                 "type": StreamingEvent.THINKING,
-                "content": "Analyzing your request...",
-                "metadata": {"phase": "initialization"},
+                "content": "Initializing AI agents...",
                 "timestamp": datetime.utcnow().isoformat()
-            })
+            }
             
-            # Get user integrations
-            user_integrations = db.query(Integration).filter(
-                Integration.owner_id == user_id,
-                Integration.is_active == True
-            ).all()
+            logger.info(f"Processing query for user {user_id}: {query[:50]}...")
             
-            if not user_integrations:
-                yield {
-                    "type": StreamingEvent.ERROR,
-                    "content": "No active integrations found. Please configure your integrations first.",
-                    "timestamp": datetime.utcnow().isoformat()
-                }
-                return
+            # Skip database operations for now - test with empty tools
+            available_tools = []
             
-            # Load tools for user integrations
-            all_tools = []
-            for integration in user_integrations:
-                tools = await tool_registry.load_tools_for_integration(integration)
-                all_tools.extend(tools)
-            
-            await self._emit_stream_event(session_id, {
-                "type": StreamingEvent.AGENT_EVENT,
-                "content": f"Loaded {len(all_tools)} tools from {len(user_integrations)} integrations",
-                "metadata": {
-                    "tools_count": len(all_tools),
-                    "integrations_count": len(user_integrations)
-                },
-                "timestamp": datetime.utcnow().isoformat()
-            })
-            
-            # Route query to appropriate agents
-            await self._emit_stream_event(session_id, {
-                "type": StreamingEvent.THINKING,
-                "content": "Determining which systems can help with your request...",
-                "metadata": {"phase": "routing"},
-                "timestamp": datetime.utcnow().isoformat()
-            })
-            
-            routing_result = await self._route_query_streaming(query, user_integrations, session_id)
-            
-            # Execute agent tasks with tool calls
-            await self._emit_stream_event(session_id, {
-                "type": StreamingEvent.AGENT_EVENT,
-                "content": f"Executing tasks using {len(routing_result.get('agents', []))} specialized agents",
-                "metadata": routing_result,
-                "timestamp": datetime.utcnow().isoformat()
-            })
-            
-            execution_results = {}
-            for agent_id in routing_result.get("agents", []):
-                async for result in self._execute_agent_task_streaming(
-                    agent_id, query, session_id, db
-                ):
-                    yield result
-                    if result.get("type") == StreamingEvent.FINAL:
-                        execution_results[agent_id] = result.get("data", {})
-            
-            # Aggregate results
-            await self._emit_stream_event(session_id, {
-                "type": StreamingEvent.THINKING,
-                "content": "Combining results from all systems...",
-                "metadata": {"phase": "aggregation"},
-                "timestamp": datetime.utcnow().isoformat()
-            })
-            
-            final_result = await self._aggregate_results_streaming(
-                execution_results, query, session_id
+            # Create and run CrewAI crew
+            result = await self.crewai_service.process_user_query(
+                query=query,
+                user_id=user_id,
+                tools=available_tools,
+                callback=self._stream_callback(session_id)
             )
             
             # Send final result
             yield {
                 "type": StreamingEvent.FINAL,
-                "content": final_result.get("summary", "Task completed"),
-                "data": final_result,
+                "content": result,
                 "timestamp": datetime.utcnow().isoformat()
             }
             
         except Exception as e:
             logger.error(f"Streaming query processing failed: {e}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             yield {
                 "type": StreamingEvent.ERROR,
                 "content": f"Processing failed: {str(e)}",
                 "timestamp": datetime.utcnow().isoformat()
             }
+    
+    def _stream_callback(self, session_id: str):
+        """Create callback for streaming updates"""
+        loop = asyncio.get_running_loop()
+        def callback(agent_output):
+            # This would stream intermediate results
+            event = {"type": "agent_step", "data": str(agent_output)}
+            asyncio.run_coroutine_threadsafe(self._emit_stream_event(session_id, event), loop)
+        return callback
     
     async def _emit_stream_event(self, session_id: str, event: Dict[str, Any]):
         """Emit streaming event to WebSocket."""
@@ -257,28 +214,109 @@ class StreamingCrewAIService:
             routing_result["agents"].append(f"integration_{user_integrations[0].id}")
             routing_result["reasoning"] = f"Default routing to {user_integrations[0].name}"
         
-        await self._emit_stream_event(session_id, {
-            "type": StreamingEvent.AGENT_EVENT,
-            "content": f"Routing to {len(routing_result['agents'])} agents: {routing_result['reasoning']}",
-            "metadata": routing_result,
-            "timestamp": datetime.utcnow().isoformat()
-        })
+# Routing completed - event will be emitted by main generator
         
         return routing_result
+    
+    async def _analyze_query_intent(self, query: str, session_id: str) -> Dict[str, Any]:
+        """Analyze query intent and complexity for better routing and processing."""
+        try:
+            query_lower = query.lower()
+            
+            # Determine query complexity
+            complexity = "simple"
+            if len(query.split()) > 20:
+                complexity = "complex"
+            elif len(query.split()) > 10:
+                complexity = "medium"
+            
+            # Analyze intent based on keywords and patterns
+            intent_categories = []
+            
+            # CRUD operations detection
+            if any(word in query_lower for word in ["create", "add", "new", "make"]):
+                intent_categories.append("create")
+            if any(word in query_lower for word in ["update", "change", "modify", "edit"]):
+                intent_categories.append("update")
+            if any(word in query_lower for word in ["delete", "remove", "cancel"]):
+                intent_categories.append("delete")
+            if any(word in query_lower for word in ["search", "find", "get", "show", "list", "fetch"]):
+                intent_categories.append("read")
+            
+            # System/Integration specific detection
+            systems_mentioned = []
+            if "jira" in query_lower or any(word in query_lower for word in ["issue", "sprint", "project", "bug"]):
+                systems_mentioned.append("jira")
+            if "salesforce" in query_lower or any(word in query_lower for word in ["lead", "opportunity", "account", "crm"]):
+                systems_mentioned.append("salesforce")
+            if "zendesk" in query_lower or any(word in query_lower for word in ["ticket", "support", "customer"]):
+                systems_mentioned.append("zendesk")
+            if "slack" in query_lower or any(word in query_lower for word in ["message", "channel", "team"]):
+                systems_mentioned.append("slack")
+            if "github" in query_lower or any(word in query_lower for word in ["repository", "repo", "commit", "pull request"]):
+                systems_mentioned.append("github")
+            if "hubspot" in query_lower or any(word in query_lower for word in ["contact", "deal", "marketing"]):
+                systems_mentioned.append("hubspot")
+            
+            # Determine primary intent
+            primary_intent = "general_inquiry"
+            if intent_categories:
+                primary_intent = intent_categories[0]
+            
+            # Estimate processing time based on complexity and systems
+            estimated_time_seconds = 5  # Base time
+            if complexity == "medium":
+                estimated_time_seconds = 10
+            elif complexity == "complex":
+                estimated_time_seconds = 20
+            
+            estimated_time_seconds += len(systems_mentioned) * 3  # Additional time per system
+            
+            analysis_result = {
+                "intent": primary_intent,
+                "intent_categories": intent_categories,
+                "complexity": complexity,
+                "systems_mentioned": systems_mentioned,
+                "estimated_time_seconds": estimated_time_seconds,
+                "requires_multiple_systems": len(systems_mentioned) > 1,
+                "word_count": len(query.split()),
+                "has_specific_entities": bool(systems_mentioned or intent_categories)
+            }
+            
+# Analysis completed - event will be emitted by main generator
+            
+            return analysis_result
+            
+        except Exception as e:
+            logger.error(f"Query analysis failed: {e}")
+            # Return basic analysis
+            return {
+                "intent": "general_inquiry",
+                "complexity": "simple",
+                "systems_mentioned": [],
+                "estimated_time_seconds": 5,
+                "error": str(e)
+            }
     
     async def _execute_agent_task_streaming(
         self,
         agent_id: str,
         query: str,
         session_id: str,
+        user_id: str,
         db: Session
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """Execute agent task with streaming tool execution."""
         
         try:
-            # Get integration for this agent
+            # Get integration for this agent (run in thread pool to avoid blocking)
             integration_id = agent_id.replace("integration_", "")
-            integration = db.query(Integration).filter(Integration.id == int(integration_id)).first()
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                integration = await asyncio.get_event_loop().run_in_executor(
+                    executor,
+                    lambda: db.query(Integration).filter(Integration.id == int(integration_id)).first()
+                )
             
             if not integration:
                 yield {
@@ -288,12 +326,12 @@ class StreamingCrewAIService:
                 }
                 return
             
-            await self._emit_stream_event(session_id, {
+            yield {
                 "type": StreamingEvent.AGENT_EVENT,
                 "content": f"Starting {integration.name} agent...",
                 "metadata": {"agent_id": agent_id, "integration_type": integration.integration_type},
                 "timestamp": datetime.utcnow().isoformat()
-            })
+            }
             
             # Get tools for this integration
             tools = tool_registry.get_tools_for_integration(str(integration.id))
@@ -321,7 +359,7 @@ class StreamingCrewAIService:
             tool_params = await self._extract_tool_parameters(query, selected_tool, integration.integration_type)
             
             # Execute tool with streaming
-            await self._emit_stream_event(session_id, {
+            yield {
                 "type": StreamingEvent.TOOL_CALL,
                 "content": f"Executing {selected_tool.tool_name}...",
                 "metadata": {
@@ -330,32 +368,16 @@ class StreamingCrewAIService:
                     "status": "starting"
                 },
                 "timestamp": datetime.utcnow().isoformat()
-            })
+            }
             
-            # Set up tool event streaming
-            original_emit = selected_tool.emit_event
-            
-            async def streaming_emit_event(event: ToolExecutionEvent):
-                await original_emit(event)
-                await self._emit_stream_event(session_id, {
-                    "type": StreamingEvent.TOOL_CALL,
-                    "content": event.message,
-                    "metadata": {
-                        "tool_name": event.tool_name,
-                        "event_type": event.type,
-                        "data": event.data
-                    },
-                    "timestamp": event.timestamp.isoformat()
-                })
-            
-            selected_tool.emit_event = streaming_emit_event
+            # Tool events will be handled by the main generator flow
             
             # Start tracking tool execution
             execution_id = await tool_tracking_service.start_tool_execution(
                 tool_name=selected_tool.tool_name,
                 integration_id=integration.id,
                 session_id=session_id,
-                user_id=int(session_id.split("_")[1]),  # Extract user_id from session_id
+                user_id=int(user_id),
                 parameters=tool_params,
                 db=db
             )

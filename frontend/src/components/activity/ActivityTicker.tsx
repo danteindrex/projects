@@ -23,173 +23,58 @@ interface ActivityEvent {
   agent?: string;
 }
 
-const mockActivityEvents: ActivityEvent[] = [
-  {
-    id: '1',
-    type: 'agent_action',
-    title: 'Jira Issue Analysis',
-    description: 'Agent "jira_specialist" is analyzing recent issues',
-    timestamp: new Date(Date.now() - 1000 * 30), // 30 seconds ago
-    status: 'running',
-    agent: 'jira_specialist',
-    metadata: { issue_count: 15, priority: 'high' }
-  },
-  {
-    id: '2',
-    type: 'integration_event',
-    title: 'Salesforce Sync',
-    description: 'Data synchronization completed successfully',
-    timestamp: new Date(Date.now() - 1000 * 60 * 2), // 2 minutes ago
-    status: 'completed',
-    metadata: { records_synced: 1247, duration: '45s' }
-  },
-  {
-    id: '3',
-    type: 'user_action',
-    title: 'Integration Test',
-    description: 'User tested Zendesk connection',
-    timestamp: new Date(Date.now() - 1000 * 60 * 5), // 5 minutes ago
-    status: 'completed',
-    user: 'admin@company.com',
-    metadata: { response_time: '245ms', status: 'success' }
-  },
-  {
-    id: '4',
-    type: 'system_event',
-    title: 'Health Check',
-    description: 'System health check completed',
-    timestamp: new Date(Date.now() - 1000 * 60 * 10), // 10 minutes ago
-    status: 'completed',
-    metadata: { checks_passed: 23, checks_failed: 0 }
-  }
-];
+// Real activity events will be loaded from API or WebSocket
 
 export default function ActivityTicker() {
-  const [activities, setActivities] = useState<ActivityEvent[]>(mockActivityEvents);
+  const [activities, setActivities] = useState<ActivityEvent[]>([]);
   const [isLive, setIsLive] = useState(true);
   const [showAll, setShowAll] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Load real activities from API
+    loadActivities();
+    
     if (isLive) {
-      const interval = setInterval(() => {
-        addRandomActivity();
-      }, 8000); // Add activity every 8 seconds
-
-      return () => clearInterval(interval);
+      // Set up real-time activity listener if WebSocket is available
+      // TODO: Connect to real activity stream when backend endpoint is ready
+      // const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws/activity';
+      // const ws = new WebSocket(wsUrl);
+      // ws.onmessage = (event) => {
+      //   const activity = JSON.parse(event.data);
+      //   addActivity(activity);
+      // };
+      // return () => ws.close();
     }
   }, [isLive]);
 
-  const addRandomActivity = () => {
-    const activityTypes: ActivityEvent['type'][] = [
-      'agent_action',
-      'system_event',
-      'user_action',
-      'integration_event'
-    ];
+  const loadActivities = async () => {
+    try {
+      setLoading(true);
+      // TODO: Replace with actual API call when activity endpoint is ready
+      // const activities = await apiClient.getActivityFeed();
+      // setActivities(activities);
+      
+      // For now, start with empty activities
+      setActivities([]);
+    } catch (error) {
+      console.error('Failed to load activities:', error);
+      setActivities([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const activityTemplates = {
-      agent_action: [
-        {
-          title: 'Data Processing',
-          description: 'Agent "data_processor" is processing customer data',
-          agent: 'data_processor',
-          metadata: { records_processed: Math.floor(Math.random() * 1000) + 100 }
-        },
-        {
-          title: 'API Call',
-          description: 'Agent "api_specialist" is making external API call',
-          agent: 'api_specialist',
-          metadata: { endpoint: '/api/v2/users', method: 'GET' }
-        },
-        {
-          title: 'Report Generation',
-          description: 'Agent "reporter" is generating monthly report',
-          agent: 'reporter',
-          metadata: { report_type: 'monthly', sections: 8 }
-        }
-      ],
-      system_event: [
-        {
-          title: 'Cache Update',
-          description: 'System cache has been refreshed',
-          metadata: { cache_size: '2.4GB', items_updated: 156 }
-        },
-        {
-          title: 'Backup Started',
-          description: 'Automated backup process initiated',
-          metadata: { backup_type: 'incremental', estimated_duration: '15m' }
-        },
-        {
-          title: 'Performance Scan',
-          description: 'System performance scan completed',
-          metadata: { scan_duration: '2m 34s', issues_found: 0 }
-        }
-      ],
-      user_action: [
-        {
-          title: 'Dashboard Access',
-          description: 'User accessed metrics dashboard',
-          user: 'user@company.com',
-          metadata: { page: '/dashboard', session_duration: '12m' }
-        },
-        {
-          title: 'Integration Setup',
-          description: 'User configured new integration',
-          user: 'admin@company.com',
-          metadata: { integration: 'GitHub', status: 'active' }
-        },
-        {
-          title: 'Report Export',
-          description: 'User exported activity report',
-          user: 'analyst@company.com',
-          metadata: { format: 'CSV', records: 2341 }
-        }
-      ],
-      integration_event: [
-        {
-          title: 'Webhook Received',
-          description: 'Webhook from external system received',
-          metadata: { source: 'Jira', event_type: 'issue_updated' }
-        },
-        {
-          title: 'Rate Limit Reset',
-          description: 'API rate limit has been reset',
-          metadata: { integration: 'Salesforce', reset_time: '00:00 UTC' }
-        },
-        {
-          title: 'Connection Test',
-          description: 'Integration connection test completed',
-          metadata: { integration: 'Zendesk', response_time: '189ms' }
-        }
-      ]
-    };
+  const addActivity = (activity: ActivityEvent) => {
+    setActivities(prev => [activity, ...prev.slice(0, 49)]); // Keep last 50 activities
+  };
 
-    const randomType = activityTypes[Math.floor(Math.random() * activityTypes.length)];
-    const templates = activityTemplates[randomType];
-    const template = templates[Math.floor(Math.random() * templates.length)];
-
-    const newActivity: ActivityEvent = {
-      id: Date.now().toString(),
-      type: randomType,
-      title: template.title,
-      description: template.description,
-      timestamp: new Date(),
-      status: 'running',
-      ...template
-    };
-
-    setActivities(prev => [newActivity, ...prev.slice(0, 49)]); // Keep last 50 activities
-
-    // Simulate status change after a delay
-    setTimeout(() => {
-      setActivities(prev => 
-        prev.map(a => 
-          a.id === newActivity.id 
-            ? { ...a, status: Math.random() > 0.1 ? 'completed' : 'failed' }
-            : a
-        )
-      );
-    }, 3000 + Math.random() * 4000); // 3-7 seconds
+  const updateActivityStatus = (id: string, status: ActivityEvent['status']) => {
+    setActivities(prev => 
+      prev.map(a => 
+        a.id === id ? { ...a, status } : a
+      )
+    );
   };
 
   const getActivityIcon = (type: ActivityEvent['type']) => {
@@ -293,8 +178,25 @@ export default function ActivityTicker() {
       {/* Activity Stream */}
       <div className="bg-white rounded-lg border border-neutral-200 shadow-soft">
         <div className="p-4">
-          <div className="space-y-3">
-            {displayedActivities.map((activity) => (
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+              <span className="ml-2 text-neutral-600">Loading activities...</span>
+            </div>
+          ) : activities.length === 0 ? (
+            <div className="text-center py-12">
+              <ServerIcon className="h-16 w-16 text-neutral-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-neutral-900 mb-2">No Activity Yet</h3>
+              <p className="text-neutral-600 mb-4">
+                Activity will appear here when you start using integrations and agents.
+              </p>
+              <p className="text-sm text-neutral-500">
+                Connect your first integration to see real-time activity updates.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {displayedActivities.map((activity) => (
               <div
                 key={activity.id}
                 className="flex items-start space-x-3 p-3 hover:bg-neutral-50 rounded-lg transition-colors"
@@ -355,8 +257,9 @@ export default function ActivityTicker() {
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
           
           {activities.length > 8 && (
             <div className="text-center pt-4">

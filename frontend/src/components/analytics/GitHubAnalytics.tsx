@@ -37,27 +37,47 @@ export default function GitHubAnalytics({ integrationId, integrationName }: GitH
         apiClient.getGitHubIssues(integrationId)
       ]);
 
+      let hasAnyData = false;
+
+      // Handle repositories response
       if (reposResponse.status === 'fulfilled') {
-        if (!reposResponse.value.data) {
-          throw new Error('GitHub repositories data not available');
-        }
-        setRepositories(reposResponse.value.data.slice(0, 10));
-        
-        // Get recent PRs from issues data (GitHub API returns PRs as issues)
-        if (issuesResponse.status === 'fulfilled') {
-          if (!issuesResponse.value.data) {
-            throw new Error('GitHub issues data not available');
-          }
-          const prs = issuesResponse.value.data.filter((issue: any) => issue.pull_request).slice(0, 5);
-          setRecentPRs(prs);
+        if (reposResponse.value.success && Array.isArray(reposResponse.value.data)) {
+          setRepositories(reposResponse.value.data.slice(0, 10));
+          hasAnyData = true;
         } else {
-          throw new Error('Failed to load GitHub issues');
+          console.warn('GitHub repositories request succeeded but returned invalid data:', reposResponse.value);
         }
       } else {
-        throw new Error('Failed to load GitHub repositories');
+        console.error('GitHub repositories request failed:', reposResponse.reason);
       }
-    } catch (err) {
-      setError('Error loading GitHub analytics');
+      
+      // Handle issues response (for pull requests)
+      if (issuesResponse.status === 'fulfilled') {
+        if (issuesResponse.value.success && Array.isArray(issuesResponse.value.data)) {
+          const prs = issuesResponse.value.data.filter((issue: any) => issue.pull_request).slice(0, 5);
+          setRecentPRs(prs);
+          hasAnyData = true;
+        } else {
+          console.warn('GitHub issues request succeeded but returned invalid data:', issuesResponse.value);
+        }
+      } else {
+        console.error('GitHub issues request failed:', issuesResponse.reason);
+      }
+
+      // If neither request succeeded, show error
+      if (!hasAnyData) {
+        if (reposResponse.status === 'rejected' && issuesResponse.status === 'rejected') {
+          throw new Error('Unable to connect to GitHub. Please check your integration configuration and try again.');
+        } else if (reposResponse.status === 'rejected') {
+          setError('Unable to load GitHub repositories. Issues data may still be available.');
+        } else if (issuesResponse.status === 'rejected') {
+          setError('Unable to load GitHub issues. Repository data may still be available.');
+        }
+      }
+      
+    } catch (err: any) {
+      const errorMessage = err?.message || 'Error loading GitHub analytics';
+      setError(errorMessage);
       console.error('GitHub analytics error:', err);
     } finally {
       setLoading(false);
@@ -83,7 +103,13 @@ export default function GitHubAnalytics({ integrationId, integrationName }: GitH
     return (
       <div className="text-center py-8">
         <ExclamationCircleIcon className="mx-auto h-8 w-8 text-neutral-400 mb-2" />
-        <p className="text-sm text-neutral-600">{error}</p>
+        <p className="text-sm text-neutral-600 mb-4">{error}</p>
+        <button
+          onClick={loadGitHubData}
+          className="text-sm text-primary-600 hover:text-primary-700 underline"
+        >
+          Try again
+        </button>
       </div>
     );
   }

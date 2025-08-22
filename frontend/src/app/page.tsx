@@ -109,24 +109,26 @@ export default function HomePage() {
         </nav>
 
         {/* Hero Content */}
-        <section className="relative z-20 mx-auto max-w-7xl px-6 py-24 sm:py-32 lg:px-8 lg:py-40" id="main-content">
+        <section className="relative z-20 mx-auto max-w-7xl px-6 py-24 sm:py-32 lg:px-8 lg:py-40" id="main-content" style={{marginTop: '6cm'}}>
           <div className="mx-auto max-w-4xl text-center">
             <h1 
               className="font-bold tracking-tight text-white mb-8"
               style={{
-                fontSize: 'clamp(2.5rem, 6vw, var(--font-h1))',
+                fontSize: 'clamp(3.2rem, 7.5vw, calc(var(--font-h1) * 1.3))',
                 fontFamily: 'Figtree, Helvetica, Arial, sans-serif',
                 fontWeight: '600',
                 lineHeight: '1.1'
               }}
             >
-              <span className="heading-line block">AI Powered Business Management</span>
+              <span className="heading-line block">
+                <span className="text-[#27cbb9]" style={{fontSize: '1.1em'}}>AI</span> Powered Business Management
+              </span>
             </h1>
             
             <h2 
               className="font-bold tracking-tight text-[#27cbb9] mb-8"
               style={{
-                fontSize: 'clamp(1.8rem, 5vw, var(--font-h2))',
+                fontSize: 'clamp(2.2rem, 6vw, calc(var(--font-h2) * 1.2))',
                 fontFamily: 'Figtree, Helvetica, Arial, sans-serif',
                 fontWeight: '600',
                 lineHeight: '1.3'
@@ -138,12 +140,12 @@ export default function HomePage() {
             <p 
               className="text-reveal text-gray-300 max-w-3xl mx-auto mb-12"
               style={{
-                fontSize: 'var(--font-body)',
+                fontSize: 'calc(var(--font-body) * 1.2)',
                 fontFamily: 'Figtree, Helvetica, Arial, sans-serif',
                 lineHeight: '1.6'
               }}
             >
-              The UAE's Leading Corporate-Startup Open Innovation Program
+              Streamline your business operations with AI-powered insights and real-time system integration
             </p>
             
             {/* CTA Buttons - Scale360 Style */}

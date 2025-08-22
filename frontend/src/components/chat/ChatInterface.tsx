@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
+import MessageFormatter from './MessageFormatter';
 import { 
   PaperAirplaneIcon, 
   CogIcon,
@@ -163,33 +164,115 @@ export default function ChatInterface() {
   };
 
   const handleWebSocketMessage = (data: any) => {
+    console.log('WebSocket message received:', data);
+    
     switch (data.type) {
-      case 'message':
-        const message: ChatMessage = {
-          id: data.id || Date.now().toString(),
+      case 'connection_established':
+        console.log('WebSocket connection established:', data);
+        setIsConnected(true);
+        break;
+      
+      case 'analysis':
+      case 'reasoning':
+      case 'thinking':
+        setIsThinking(true);
+        // Add thinking message temporarily
+        const thinkingMessage: ChatMessage = {
+          id: `thinking-${Date.now()}`,
           content: data.content,
-          type: data.message_type || 'assistant',
+          type: 'thinking',
           timestamp: data.timestamp || new Date().toISOString(),
           metadata: data.metadata
         };
-        setMessages(prev => [...prev, message]);
+        setMessages(prev => {
+          // Remove any existing thinking messages
+          const filtered = prev.filter(m => !m.id.startsWith('thinking-'));
+          return [...filtered, thinkingMessage];
+        });
+        break;
+      
+      case 'agent_event':
+        // Show agent activity
+        const agentMessage: ChatMessage = {
+          id: `agent-${Date.now()}`,
+          content: data.content,
+          type: 'system',
+          timestamp: data.timestamp || new Date().toISOString(),
+          metadata: data.metadata
+        };
+        setMessages(prev => [...prev, agentMessage]);
         break;
       
       case 'tool_call':
-        setCurrentToolCall(data);
+      case 'tool_start':
+      case 'tool_progress':
+      case 'tool_result':
+        setCurrentToolCall({
+          tool_name: data.metadata?.tool_name || 'Unknown Tool',
+          status: data.metadata?.event_type === 'started' ? 'running' : 
+                 data.metadata?.event_type === 'completed' ? 'completed' : 'pending'
+        });
         break;
       
-      case 'thinking':
-        setIsThinking(data.thinking);
+      case 'synthesis':
+        setIsThinking(false);
+        // Remove thinking messages
+        setMessages(prev => prev.filter(m => !m.id.startsWith('thinking-')));
+        
+        const synthesisMessage: ChatMessage = {
+          id: `synthesis-${Date.now()}`,
+          content: data.content,
+          type: 'system',
+          timestamp: data.timestamp || new Date().toISOString(),
+          metadata: data.metadata
+        };
+        setMessages(prev => [...prev, synthesisMessage]);
         break;
       
+      case 'final':
+        setIsThinking(false);
+        setCurrentToolCall(null);
+        
+        // Remove temporary messages
+        setMessages(prev => prev.filter(m => 
+          !m.id.startsWith('thinking-') && 
+          !m.id.startsWith('synthesis-')
+        ));
+        
+        // Add final assistant message
+        const finalMessage: ChatMessage = {
+          id: Date.now().toString(),
+          content: data.content,
+          type: 'assistant',
+          timestamp: data.timestamp || new Date().toISOString(),
+          metadata: data.data
+        };
+        setMessages(prev => [...prev, finalMessage]);
+        setIsLoading(false);
+        break;
+      
+      case 'error':
+        setIsThinking(false);
+        setCurrentToolCall(null);
+        setIsLoading(false);
+        
+        const errorMessage: ChatMessage = {
+          id: Date.now().toString(),
+          content: `Error: ${data.content}`,
+          type: 'system',
+          timestamp: data.timestamp || new Date().toISOString()
+        };
+        setMessages(prev => [...prev, errorMessage]);
+        break;
+      
+      case 'token':
       case 'stream_chunk':
         // Handle streaming response
         updateLastMessage(data.content);
         break;
       
       default:
-        console.log('Unknown message type:', data.type);
+        console.log('Unknown WebSocket message type:', data.type, data);
     }
   };
 
@@ -229,8 +312,7 @@ export default function ChatInterface() {
       // Send message via WebSocket if connected
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({
-          type: 'message',
-          content: messageContent,
+          message: messageContent,
           timestamp: new Date().toISOString()
         }));
       } else {
@@ -383,9 +465,9 @@ export default function ChatInterface() {
   const getMessageStyle = (type: string) => {
     switch (type) {
       case 'user':
-        return 'bg-green-200 text-black ml-auto';
+        return 'bg-primary-regular text-white ml-auto';
       case 'assistant':
-        return 'bg-white border border-neutral-200 text-neutral-900';
+        return 'bg-white border border-neutral-200 text-neutral-900 shadow-medium';
       case 'tool_call':
         return 'bg-blue-50 border border-blue-200 text-blue-900';
       case 'thinking':
@@ -463,13 +545,17 @@ export default function ChatInterface() {
             )}
             
             <div 
-              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg shadow-soft ${getMessageStyle(message.type)}`}
+              className={`max-w-xs lg:max-w-2xl px-4 py-3 rounded-lg shadow-soft ${getMessageStyle(message.type)}`}
               role="article"
               aria-label={`${message.type === 'user' ? 'Your message' : 'AI response'} at ${new Date(message.timestamp).toLocaleTimeString()}`}
             >
-              <p className="text-sm">{message.content}</p>
+              <MessageFormatter 
+                content={message.content}
+                messageType={message.type}
+                className="text-sm"
+              />
               <time 
-                className="text-xs opacity-70 mt-1 block"
+                className="text-xs opacity-70 mt-2 block"
                 dateTime={message.timestamp}
               >
                 {new Date(message.timestamp).toLocaleTimeString()}

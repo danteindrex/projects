@@ -53,90 +53,55 @@ export default function NotificationSystem() {
   });
 
   useEffect(() => {
-    // Initialize with some mock notifications
-    const mockNotifications: Notification[] = [
-      {
-        id: '1',
-        type: 'success',
-        title: 'Integration Connected',
-        message: 'Jira integration has been successfully connected and tested.',
-        timestamp: new Date(Date.now() - 1000 * 60 * 5), // 5 minutes ago
-        read: false
-      },
-      {
-        id: '2',
-        type: 'warning',
-        title: 'High Memory Usage',
-        message: 'System memory usage is approaching 80%. Consider optimization.',
-        timestamp: new Date(Date.now() - 1000 * 60 * 15), // 15 minutes ago
-        read: false
-      },
-      {
-        id: '3',
-        type: 'info',
-        title: 'Agent Started',
-        message: 'CrewAI agent "jira_specialist" has been initialized and is ready.',
-        timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-        read: true
-      }
-    ];
-
-    setNotifications(mockNotifications);
-    updateUnreadCount(mockNotifications);
-
-    // Simulate real-time notifications
-    const interval = setInterval(() => {
-      addRandomNotification();
-    }, 10000); // Add notification every 10 seconds
-
-    return () => clearInterval(interval);
+    // Load real notifications from API or WebSocket
+    loadNotifications();
+    
+    // Set up real-time notification listener if WebSocket is available
+    // TODO: Connect to real notification system when backend endpoint is ready
+    // const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws/notifications';
+    // const ws = new WebSocket(wsUrl);
+    // ws.onmessage = (event) => {
+    //   const notification = JSON.parse(event.data);
+    //   addNotification(notification);
+    // };
+    // return () => ws.close();
   }, []);
+
+  const loadNotifications = async () => {
+    try {
+      // TODO: Replace with actual API call when notifications endpoint is ready
+      // const notifications = await apiClient.getNotifications();
+      // setNotifications(notifications);
+      // updateUnreadCount(notifications);
+      
+      // For now, start with empty notifications
+      setNotifications([]);
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Failed to load notifications:', error);
+      setNotifications([]);
+      setUnreadCount(0);
+    }
+  };
 
   const updateUnreadCount = (notifs: Notification[]) => {
     setUnreadCount(notifs.filter(n => !n.read).length);
   };
 
-  const addRandomNotification = () => {
-    const types: Notification['type'][] = ['info', 'success', 'warning', 'error'];
-    const randomType = types[Math.floor(Math.random() * types.length)];
-    
-    const notificationTemplates = {
-      info: [
-        { title: 'System Update', message: 'Background maintenance completed successfully.' },
-        { title: 'New Feature', message: 'Real-time metrics dashboard is now available.' },
-        { title: 'Agent Status', message: 'All AI agents are responding normally.' }
-      ],
-      success: [
-        { title: 'Task Completed', message: 'Data synchronization job finished successfully.' },
-        { title: 'Integration Test', message: 'API connection test passed with flying colors.' },
-        { title: 'Backup Complete', message: 'System backup completed successfully.' }
-      ],
-      warning: [
-        { title: 'Performance Alert', message: 'Response time is slightly above normal.' },
-        { title: 'Resource Usage', message: 'CPU usage is approaching threshold.' },
-        { title: 'Connection Warning', message: 'Some integrations showing slow response.' }
-      ],
-      error: [
-        { title: 'Connection Failed', message: 'Failed to connect to external API.' },
-        { title: 'Agent Error', message: 'AI agent encountered an error and was restarted.' },
-        { title: 'System Warning', message: 'Database connection timeout detected.' }
-      ]
-    };
-
-    const templates = notificationTemplates[randomType];
-    const template = templates[Math.floor(Math.random() * templates.length)];
+  const addNotification = (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
+    if (!settings.enabled || !settings.types[notification.type]) {
+      return;
+    }
 
     const newNotification: Notification = {
+      ...notification,
       id: Date.now().toString(),
-      type: randomType,
-      title: template.title,
-      message: template.message,
       timestamp: new Date(),
       read: false
     };
 
-    setNotifications(prev => [newNotification, ...prev]);
-    updateUnreadCount([newNotification, ...notifications]);
+    setNotifications(prev => [newNotification, ...prev].slice(0, 50)); // Keep last 50
+    updateUnreadCount([newNotification, ...notifications].slice(0, 50));
 
     // Play notification sound if enabled
     if (settings.sound) {
@@ -148,6 +113,12 @@ export default function NotificationSystem() {
       showDesktopNotification(newNotification);
     }
   };
+
+  // Public method to add notifications from other components
+  // This can be called when real events happen (integrations connect, errors occur, etc.)
+  React.useImperativeHandle(React.useRef(), () => ({
+    addNotification
+  }), [settings, notifications]);
 
   const playNotificationSound = () => {
     try {

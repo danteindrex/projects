@@ -243,6 +243,382 @@ export interface IntegrationTestResult {
   timestamp: string;
 }
 
+// Integration Data Response Types
+export interface IntegrationDataResponse<T> {
+  data: T;
+  success: boolean;
+  message?: string;
+  total?: number;
+  page?: number;
+  per_page?: number;
+}
+
+// GitHub Types
+export interface GitHubRepository {
+  id: number;
+  name: string;
+  full_name: string;
+  description?: string;
+  private: boolean;
+  html_url: string;
+  clone_url: string;
+  language?: string;
+  stargazers_count: number;
+  watchers_count: number;
+  forks_count: number;
+  open_issues_count: number;
+  visibility: 'public' | 'private';
+  created_at: string;
+  updated_at: string;
+  pushed_at: string;
+}
+
+export interface GitHubIssue {
+  id: number;
+  number: number;
+  title: string;
+  body?: string;
+  state: 'open' | 'closed';
+  user: {
+    id: number;
+    login: string;
+    avatar_url: string;
+  };
+  assignee?: {
+    id: number;
+    login: string;
+    avatar_url: string;
+  };
+  labels: Array<{
+    id: number;
+    name: string;
+    color: string;
+  }>;
+  pull_request?: {
+    url: string;
+    html_url: string;
+  };
+  created_at: string;
+  updated_at: string;
+  closed_at?: string;
+}
+
+// Slack Types
+export interface SlackChannel {
+  id: string;
+  name: string;
+  is_channel: boolean;
+  is_group: boolean;
+  is_im: boolean;
+  is_private: boolean;
+  is_archived: boolean;
+  num_members: number;
+  purpose?: {
+    value: string;
+    creator: string;
+    last_set: number;
+  };
+  topic?: {
+    value: string;
+    creator: string;
+    last_set: number;
+  };
+  created: number;
+}
+
+export interface SlackUser {
+  id: string;
+  name: string;
+  real_name?: string;
+  profile: {
+    display_name?: string;
+    real_name?: string;
+    email?: string;
+    image_24?: string;
+    image_32?: string;
+    image_48?: string;
+  };
+  is_bot: boolean;
+  is_admin: boolean;
+  is_owner: boolean;
+  is_primary_owner: boolean;
+  is_restricted: boolean;
+  is_ultra_restricted: boolean;
+  deleted: boolean;
+}
+
+// Jira Types
+export interface JiraProject {
+  id: string;
+  key: string;
+  name: string;
+  description?: string;
+  projectTypeKey: string;
+  avatarUrls?: {
+    '16x16'?: string;
+    '24x24'?: string;
+    '32x32'?: string;
+    '48x48'?: string;
+  };
+  lead?: {
+    displayName: string;
+    emailAddress: string;
+  };
+}
+
+export interface JiraIssue {
+  id: string;
+  key: string;
+  fields: {
+    summary: string;
+    description?: string;
+    status: {
+      name: string;
+      statusCategory: {
+        key: string;
+        name: string;
+      };
+    };
+    issuetype: {
+      name: string;
+      subtask: boolean;
+    };
+    priority?: {
+      name: string;
+    };
+    assignee?: {
+      displayName: string;
+      emailAddress: string;
+    };
+    reporter?: {
+      displayName: string;
+      emailAddress: string;
+    };
+    project: {
+      key: string;
+      name: string;
+    };
+    created: string;
+    updated: string;
+    resolutiondate?: string;
+  };
+}
+
+// Salesforce Types
+export interface SalesforceAccount {
+  Id: string;
+  Name: string;
+  Type?: string;
+  Industry?: string;
+  Website?: string;
+  Phone?: string;
+  BillingCity?: string;
+  BillingState?: string;
+  BillingCountry?: string;
+  NumberOfEmployees?: number;
+  AnnualRevenue?: number;
+  CreatedDate: string;
+  LastModifiedDate: string;
+}
+
+export interface SalesforceOpportunity {
+  Id: string;
+  Name: string;
+  StageName: string;
+  CloseDate: string;
+  Amount?: number;
+  Probability?: number;
+  Type?: string;
+  LeadSource?: string;
+  Description?: string;
+  AccountId?: string;
+  Account?: {
+    Id: string;
+    Name: string;
+  };
+  CreatedDate: string;
+  LastModifiedDate: string;
+}
+
+export interface SalesforceLead {
+  Id: string;
+  FirstName?: string;
+  LastName: string;
+  Company: string;
+  Title?: string;
+  Email?: string;
+  Phone?: string;
+  Status: string;
+  LeadSource?: string;
+  Industry?: string;
+  Rating?: string;
+  City?: string;
+  State?: string;
+  Country?: string;
+  CreatedDate: string;
+  LastModifiedDate: string;
+  ConvertedDate?: string;
+}
+
+// Zendesk Types
+export interface ZendeskTicket {
+  id: number;
+  subject: string;
+  description?: string;
+  status: 'new' | 'open' | 'pending' | 'hold' | 'solved' | 'closed';
+  priority?: 'low' | 'normal' | 'high' | 'urgent';
+  type?: 'problem' | 'incident' | 'question' | 'task';
+  requester?: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  assignee?: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  organization_id?: number;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ZendeskUser {
+  id: number;
+  name: string;
+  email: string;
+  role: 'end-user' | 'agent' | 'admin';
+  active: boolean;
+  verified: boolean;
+  suspended: boolean;
+  organization_id?: number;
+  phone?: string;
+  time_zone?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ZendeskOrganization {
+  id: number;
+  name: string;
+  domain_names: string[];
+  details?: string;
+  notes?: string;
+  shared_tickets: boolean;
+  shared_comments: boolean;
+  external_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Trello Types
+export interface TrelloBoard {
+  id: string;
+  name: string;
+  desc?: string;
+  closed: boolean;
+  url: string;
+  shortUrl: string;
+  prefs: {
+    permissionLevel: string;
+    voting: string;
+    comments: string;
+    background: string;
+  };
+  dateLastActivity: string;
+  dateLastView?: string;
+}
+
+export interface TrelloList {
+  id: string;
+  name: string;
+  closed: boolean;
+  pos: number;
+  idBoard: string;
+}
+
+export interface TrelloCard {
+  id: string;
+  name: string;
+  desc?: string;
+  closed: boolean;
+  idList: string;
+  idBoard: string;
+  pos: number;
+  url: string;
+  shortUrl: string;
+  due?: string;
+  dueComplete: boolean;
+  dateLastActivity: string;
+  labels: Array<{
+    id: string;
+    idBoard: string;
+    name: string;
+    color: string;
+  }>;
+  members: Array<{
+    id: string;
+    fullName: string;
+    username: string;
+  }>;
+}
+
+// Asana Types
+export interface AsanaProject {
+  gid: string;
+  name: string;
+  notes?: string;
+  archived: boolean;
+  current_status?: {
+    text: string;
+    color: string;
+    created_at: string;
+  };
+  team?: {
+    gid: string;
+    name: string;
+  };
+  owner?: {
+    gid: string;
+    name: string;
+    email: string;
+  };
+  created_at: string;
+  modified_at: string;
+}
+
+export interface AsanaTask {
+  gid: string;
+  name: string;
+  notes?: string;
+  completed: boolean;
+  due_on?: string;
+  due_at?: string;
+  projects?: Array<{
+    gid: string;
+    name: string;
+  }>;
+  assignee?: {
+    gid: string;
+    name: string;
+    email: string;
+  };
+  created_at: string;
+  modified_at: string;
+  completed_at?: string;
+}
+
+export interface AsanaTeam {
+  gid: string;
+  name: string;
+  description?: string;
+  organization?: {
+    gid: string;
+    name: string;
+  };
+}
+
 class ApiClient {
   private baseUrl: string;
   private token: string | null = null;
@@ -311,12 +687,20 @@ class ApiClient {
         }
 
         // Handle specific status codes with better messages
+        console.log('🚨 Backend error response:', {
+          status: response.status,
+          originalMessage: errorMessage,
+          url: url,
+          method: config.method || 'GET'
+        });
+        
         switch (response.status) {
           case 400:
             // Check for specific integration errors
             if (errorMessage.includes('integration_type')) {
               errorMessage = 'Invalid integration type. Please select a supported integration.';
             } else if (errorMessage.includes('credentials')) {
+              console.log('🔍 ACTUAL backend error (before masking):', errorMessage);
               errorMessage = 'Invalid credentials provided. Please check your authentication details.';
             } else {
               errorMessage = errorMessage || 'Invalid request. Please check your input.';
@@ -582,6 +966,130 @@ class ApiClient {
   // Health check
   async healthCheck(): Promise<any> {
     return this.request<any>('/health');
+  }
+
+  // Integration-specific data endpoints
+  async getGitHubRepositories(integrationId: number, page: number = 1, perPage: number = 30): Promise<IntegrationDataResponse<GitHubRepository[]>> {
+    return this.request<IntegrationDataResponse<GitHubRepository[]>>(`/integrations/${integrationId}/github/repositories?page=${page}&per_page=${perPage}`);
+  }
+
+  async getGitHubIssues(integrationId: number, page: number = 1, perPage: number = 30, state: string = 'all'): Promise<IntegrationDataResponse<GitHubIssue[]>> {
+    return this.request<IntegrationDataResponse<GitHubIssue[]>>(`/integrations/${integrationId}/github/issues?page=${page}&per_page=${perPage}&state=${state}`);
+  }
+
+  async getSlackChannels(integrationId: number, excludeArchived: boolean = true): Promise<IntegrationDataResponse<SlackChannel[]>> {
+    return this.request<IntegrationDataResponse<SlackChannel[]>>(`/integrations/${integrationId}/slack/channels?exclude_archived=${excludeArchived}`);
+  }
+
+  async getSlackUsers(integrationId: number): Promise<IntegrationDataResponse<SlackUser[]>> {
+    return this.request<IntegrationDataResponse<SlackUser[]>>(`/integrations/${integrationId}/slack/users`);
+  }
+
+  async getJiraProjects(integrationId: number): Promise<IntegrationDataResponse<JiraProject[]>> {
+    return this.request<IntegrationDataResponse<JiraProject[]>>(`/integrations/${integrationId}/jira/projects`);
+  }
+
+  async getJiraIssues(integrationId: number, projectKey?: string, maxResults: number = 50): Promise<IntegrationDataResponse<any>> {
+    const params = new URLSearchParams();
+    params.append('max_results', maxResults.toString());
+    if (projectKey) {
+      params.append('project_key', projectKey);
+    }
+    return this.request<IntegrationDataResponse<any>>(`/integrations/${integrationId}/jira/issues?${params.toString()}`);
+  }
+
+  async getSalesforceAccounts(integrationId: number, limit: number = 20): Promise<IntegrationDataResponse<SalesforceAccount[]>> {
+    return this.request<IntegrationDataResponse<SalesforceAccount[]>>(`/integrations/${integrationId}/salesforce/accounts?limit=${limit}`);
+  }
+
+  async getSalesforceOpportunities(integrationId: number, limit: number = 20): Promise<IntegrationDataResponse<SalesforceOpportunity[]>> {
+    return this.request<IntegrationDataResponse<SalesforceOpportunity[]>>(`/integrations/${integrationId}/salesforce/opportunities?limit=${limit}`);
+  }
+
+  async getSalesforceLeads(integrationId: number, limit: number = 20): Promise<IntegrationDataResponse<SalesforceLead[]>> {
+    return this.request<IntegrationDataResponse<SalesforceLead[]>>(`/integrations/${integrationId}/salesforce/leads?limit=${limit}`);
+  }
+
+  async getZendeskTickets(integrationId: number, page: number = 1, perPage: number = 100): Promise<IntegrationDataResponse<ZendeskTicket[]>> {
+    return this.request<IntegrationDataResponse<ZendeskTicket[]>>(`/integrations/${integrationId}/zendesk/tickets?page=${page}&per_page=${perPage}`);
+  }
+
+  async getZendeskUsers(integrationId: number, page: number = 1, perPage: number = 100): Promise<IntegrationDataResponse<ZendeskUser[]>> {
+    return this.request<IntegrationDataResponse<ZendeskUser[]>>(`/integrations/${integrationId}/zendesk/users?page=${page}&per_page=${perPage}`);
+  }
+
+  async getZendeskOrganizations(integrationId: number, page: number = 1, perPage: number = 100): Promise<IntegrationDataResponse<ZendeskOrganization[]>> {
+    return this.request<IntegrationDataResponse<ZendeskOrganization[]>>(`/integrations/${integrationId}/zendesk/organizations?page=${page}&per_page=${perPage}`);
+  }
+
+  async getTrelloBoards(integrationId: number): Promise<IntegrationDataResponse<TrelloBoard[]>> {
+    return this.request<IntegrationDataResponse<TrelloBoard[]>>(`/integrations/${integrationId}/trello/boards`);
+  }
+
+  async getTrelloCards(integrationId: number, boardId?: string): Promise<IntegrationDataResponse<TrelloCard[]>> {
+    const params = boardId ? `?board_id=${boardId}` : '';
+    return this.request<IntegrationDataResponse<TrelloCard[]>>(`/integrations/${integrationId}/trello/cards${params}`);
+  }
+
+  async getTrelloLists(integrationId: number, boardId?: string): Promise<IntegrationDataResponse<TrelloList[]>> {
+    const params = boardId ? `?board_id=${boardId}` : '';
+    return this.request<IntegrationDataResponse<TrelloList[]>>(`/integrations/${integrationId}/trello/lists${params}`);
+  }
+
+  async getAsanaProjects(integrationId: number): Promise<IntegrationDataResponse<AsanaProject[]>> {
+    return this.request<IntegrationDataResponse<AsanaProject[]>>(`/integrations/${integrationId}/asana/projects`);
+  }
+
+  async getAsanaTasks(integrationId: number, projectGid?: string, completedSince?: string): Promise<IntegrationDataResponse<AsanaTask[]>> {
+    const params = new URLSearchParams();
+    if (projectGid) {
+      params.append('project_gid', projectGid);
+    }
+    if (completedSince) {
+      params.append('completed_since', completedSince);
+    }
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    return this.request<IntegrationDataResponse<AsanaTask[]>>(`/integrations/${integrationId}/asana/tasks${queryString}`);
+  }
+
+  async getAsanaTeams(integrationId: number): Promise<IntegrationDataResponse<AsanaTeam[]>> {
+    return this.request<IntegrationDataResponse<AsanaTeam[]>>(`/integrations/${integrationId}/asana/teams`);
+  }
+
+  // Analytics endpoints
+  async getAnalyticsOverview(): Promise<any> {
+    return this.request<any>('/analytics/integrations/overview');
+  }
+
+  async getAnalyticsDashboardSummary(): Promise<any> {
+    return this.request<any>('/analytics/dashboard/summary');
+  }
+
+  async getIntegrationPerformanceTrends(
+    integrationId: number, 
+    timeframe: '24h' | '7d' | '30d' = '7d'
+  ): Promise<any> {
+    return this.request<any>(`/analytics/integrations/${integrationId}/performance-trends?timeframe=${timeframe}`);
+  }
+
+  async getIntegrationErrorAnalysis(
+    integrationId: number, 
+    days: number = 7
+  ): Promise<any> {
+    return this.request<any>(`/analytics/integrations/${integrationId}/error-analysis?days=${days}`);
+  }
+
+  async getIntegrationUsagePatterns(
+    integrationId: number, 
+    days: number = 30
+  ): Promise<any> {
+    return this.request<any>(`/analytics/integrations/${integrationId}/usage-patterns?days=${days}`);
+  }
+
+  async getCostAnalysis(
+    timeframe: '7d' | '30d' | '90d' = '30d'
+  ): Promise<any> {
+    return this.request<any>(`/analytics/cost-analysis?timeframe=${timeframe}`);
   }
 
   // WebSocket URL

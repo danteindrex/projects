@@ -23,19 +23,24 @@ const integrationSchema = z.object({
   description: z.string().optional(),
   integration_type: z.string().min(1, 'Please select an integration type'),
   base_url: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
-  // Dynamic credentials based on template
-  credentials: z.record(z.string()).optional(),
-});
+  token: z.string().optional(),
+  username: z.string().optional(),
+  api_key: z.string().optional(),
+  api_token: z.string().optional(),
+  client_id: z.string().optional(),
+  client_secret: z.string().optional(),
+}).passthrough();
 
 type IntegrationFormData = z.infer<typeof integrationSchema>;
 
 interface IntegrationWizardProps {
   onComplete: (integration: any) => void;
   onCancel: () => void;
+  integrationToEdit?: any;
 }
 
-export default function IntegrationWizard({ onComplete, onCancel }: IntegrationWizardProps) {
-  const [currentStep, setCurrentStep] = useState(1);
+export default function IntegrationWizard({ onComplete, onCancel, integrationToEdit }: IntegrationWizardProps) {
+  const [currentStep, setCurrentStep] = useState(integrationToEdit ? 2 : 1);
   const [templates, setTemplates] = useState<Record<string, IntegrationTemplate>>({});
   const [templatesLoading, setTemplatesLoading] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState<IntegrationTemplate | null>(null);
@@ -64,16 +69,24 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
     fetchTemplates();
   }, []);
 
+  useEffect(() => {
+    if (integrationToEdit && templates) {
+      const template = templates[integrationToEdit.integration_type];
+      if (template) {
+        setSelectedTemplate(template);
+        reset(integrationToEdit);
+      }
+    }
+  }, [integrationToEdit, templates, reset]);
+
   const fetchTemplates = async () => {
     try {
       setTemplatesLoading(true);
       setError(null);
       
       const response = await apiClient.getIntegrationTemplates();
-      // Handle both possible response formats
       const templateData = response.templates || response;
       
-      // Convert to the format expected by the frontend
       const processedTemplates: Record<string, IntegrationTemplate> = {};
       
       Object.entries(templateData).forEach(([key, template]: [string, any]) => {
@@ -109,7 +122,6 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
   };
 
   const getCategoryFromType = (type: string): string => {
-    // Find which category this type belongs to
     for (const [category, types] of Object.entries(INTEGRATION_CATEGORIES)) {
       if (types.includes(type as any)) {
         return category;
@@ -140,7 +152,6 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
       );
     }
 
-    // Fallback to emoji for services without logos
     const emojiMap: Record<string, string> = {
       monday: '📅',
       freshdesk: '🆘',
@@ -158,7 +169,6 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
     setSelectedTemplate(template);
     setValue('integration_type', template.integration_type);
     
-    // Fetch OAuth support information
     try {
       const [oauthSupportData, scopesData] = await Promise.allSettled([
         apiClient.getOAuthSupport(template.integration_type),
@@ -171,7 +181,6 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
           [template.integration_type]: oauthSupportData.value
         }));
         
-        // Set default auth method based on OAuth support
         if (oauthSupportData.value.supports_oauth) {
           setAuthMethod('oauth');
         } else {
@@ -199,15 +208,13 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
 
     try {
       if (authMethod === 'oauth') {
-        // Handle OAuth flow
         await handleOAuthFlow(data);
       } else {
-        // Handle traditional credential flow
         await handleCredentialFlow(data);
       }
     } catch (err) {
-      console.error('Integration creation failed:', err);
-      setError(err instanceof Error ? err.message : 'Failed to create integration');
+      console.error('❌ Integration creation/update failed:', err);
+      setError(err instanceof Error ? err.message : 'Failed to process integration');
       setTestResult({
         success: false,
         message: err instanceof Error ? err.message : 'Integration setup failed'
@@ -220,45 +227,27 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
   const handleCredentialFlow = async (data: IntegrationFormData) => {
     if (!selectedTemplate) return;
 
-    // Build credentials object from form data
     const credentials: Record<string, string> = {};
     selectedTemplate.config.required_credentials.forEach(field => {
       const value = (data as any)[field];
-      if (value) {
-        credentials[field] = value;
-      }
+      credentials[field] = value || '';
     });
 
-    // Create integration
-    const integration = await apiClient.createIntegration({
+    const integrationPayload = {
       name: data.name,
       description: data.description,
       integration_type: data.integration_type,
       base_url: data.base_url || undefined,
       credentials,
       config: selectedTemplate.config.default_settings || {},
-    });
-
-    // Test the integration
-    const testResponse = await apiClient.testIntegration(integration.id);
+    };
     
-    setTestResult({
-      success: true,
-      message: 'Integration created and tested successfully!'
-    });
-    
-    setCurrentStep(3);
-    
-    // Complete after a short delay to show success
-    setTimeout(() => {
-      onComplete(integration);
-    }, 2000);
+    onComplete(integrationPayload);
   };
 
   const handleOAuthFlow = async (data: IntegrationFormData) => {
     if (!selectedTemplate) return;
 
-    // Get client credentials from form
     const clientId = (data as any).client_id;
     const clientSecret = (data as any).client_secret;
 
@@ -266,7 +255,6 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
       throw new Error('Client ID and Client Secret are required for OAuth');
     }
 
-    // Store OAuth flow data in session for callback
     const oauthData = {
       integration_type: data.integration_type,
       client_id: clientId,
@@ -276,17 +264,13 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
       config: selectedTemplate.config.default_settings || {}
     };
 
-    // Initiate OAuth flow
     const authResponse = await apiClient.initiateOAuth({
       integration_type: data.integration_type,
       client_id: clientId,
       scopes: scopes.length > 0 ? scopes : undefined
     });
 
-    // Store oauth data for callback
     sessionStorage.setItem(`oauth_${authResponse.state}`, JSON.stringify(oauthData));
-
-    // Redirect to OAuth authorization URL
     window.location.href = authResponse.authorization_url;
   };
 
@@ -371,14 +355,10 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
               <PuzzlePieceIcon className="w-8 h-8 text-primary-600" />
               <div>
                 <h2 className="text-2xl font-bold text-neutral-900">
-                  {currentStep === 1 && 'Choose Integration'}
-                  {currentStep === 2 && 'Configure Integration'}
-                  {currentStep === 3 && 'Integration Complete'}
+                  {integrationToEdit ? 'Edit Integration' : (currentStep === 1 ? 'Choose Integration' : 'Configure Integration')}
                 </h2>
                 <p className="text-neutral-600">
-                  {currentStep === 1 && 'Select the service you want to integrate'}
-                  {currentStep === 2 && `Set up your ${selectedTemplate?.name} integration`}
-                  {currentStep === 3 && 'Your integration is ready to use'}
+                  {integrationToEdit ? `Update your ${selectedTemplate?.name} integration` : (currentStep === 1 ? 'Select the service you want to integrate' : `Set up your ${selectedTemplate?.name} integration`)}
                 </p>
               </div>
             </div>
@@ -390,37 +370,36 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
             </button>
           </div>
           
-          {/* Step indicator */}
-          <div className="flex items-center justify-center mt-6 space-x-8">
-            {[1, 2, 3].map((step) => (
-              <div key={step} className="flex items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  step <= currentStep
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-neutral-200 text-neutral-500'
-                }`}>
-                  {step < currentStep ? (
-                    <CheckCircleIcon className="w-5 h-5" />
-                  ) : (
-                    step
+          {!integrationToEdit && (
+            <div className="flex items-center justify-center mt-6 space-x-8">
+              {[1, 2, 3].map((step) => (
+                <div key={step} className="flex items-center">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                    step <= currentStep
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-neutral-200 text-neutral-500'
+                  }`}>
+                    {step < currentStep ? (
+                      <CheckCircleIcon className="w-5 h-5" />
+                    ) : (
+                      step
+                    )}
+                  </div>
+                  {step < 3 && (
+                    <div className={`w-16 h-0.5 ml-2 ${
+                      step < currentStep ? 'bg-primary-600' : 'bg-neutral-200'
+                    }`} />
                   )}
                 </div>
-                {step < 3 && (
-                  <div className={`w-16 h-0.5 ml-2 ${
-                    step < currentStep ? 'bg-primary-600' : 'bg-neutral-200'
-                  }`} />
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Content */}
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-          {/* Step 1: Template Selection */}
-          {currentStep === 1 && (
+          {currentStep === 1 && !integrationToEdit && (
             <div className="space-y-8">
-              {/* Custom Integration Highlight */}
               <div className="bg-gradient-to-br from-primary-50 to-teal-50 rounded-xl p-6 border border-primary-200">
                 <div className="flex items-start justify-between mb-4">
                   <div>
@@ -442,7 +421,6 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
                 </Button>
               </div>
 
-              {/* Popular Integrations */}
               {Object.entries(groupTemplatesByCategory()).map(([category, categoryTemplates]) => {
                 if (category === 'custom') return null;
                 
@@ -477,7 +455,6 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
             </div>
           )}
 
-          {/* Step 2: Configuration */}
           {currentStep === 2 && selectedTemplate && (
             <form onSubmit={handleSubmit(handleCredentialSubmit)} className="space-y-6">
               {error && (
@@ -489,7 +466,6 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
                 </div>
               )}
 
-              {/* Selected Template Info */}
               <div className="bg-neutral-50 rounded-lg p-4 flex items-center space-x-3">
                 <div className="flex-shrink-0">
                   {(selectedTemplate as any).iconComponent || selectedTemplate.icon}
@@ -500,7 +476,6 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
                 </div>
               </div>
 
-              {/* Basic Information */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-neutral-700 mb-2">
@@ -532,7 +507,6 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
                 </div>
               </div>
 
-              {/* Authentication Method Selection */}
               {oauthSupport[selectedTemplate.integration_type]?.supports_oauth && (
                 <div>
                   <h4 className="text-lg font-medium text-neutral-900 mb-4">
@@ -599,7 +573,6 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
                 </div>
               )}
 
-              {/* OAuth Configuration */}
               {authMethod === 'oauth' && (
                 <div>
                   <h4 className="text-lg font-medium text-neutral-900 mb-4">
@@ -634,7 +607,6 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
                     </div>
                   </div>
 
-                  {/* Scopes Selection */}
                   {availableScopes.length > 0 && (
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-neutral-700 mb-2">
@@ -664,7 +636,6 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
                 </div>
               )}
 
-              {/* Credential Configuration */}
               {authMethod === 'credentials' && (
                 <div>
                   <h4 className="text-lg font-medium text-neutral-900 mb-4">
@@ -672,25 +643,26 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
                   </h4>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {selectedTemplate.config.required_credentials.map((field) => (
-                      <div key={field}>
-                        <label htmlFor={field} className="block text-sm font-medium text-neutral-700 mb-2">
-                          {field.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')} *
-                        </label>
-                        <input
-                          {...register(field as keyof IntegrationFormData)}
-                          type={field.includes('password') || field.includes('secret') || field.includes('token') ? 'password' : 'text'}
-                          id={field}
-                          className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                          placeholder={`Enter your ${field.replace('_', ' ')}`}
-                        />
-                      </div>
-                    ))}
+                    {selectedTemplate.config.required_credentials.map((field) => {
+                      return (
+                        <div key={field}>
+                          <label htmlFor={field} className="block text-sm font-medium text-neutral-700 mb-2">
+                            {field.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')} *
+                          </label>
+                          <input
+                            {...register(field as keyof IntegrationFormData, { required: true })}
+                            type={field.includes('password') || field.includes('secret') || field.includes('token') ? 'password' : 'text'}
+                            id={field}
+                            className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                            placeholder={`Enter your ${field.replace('_', ' ')}`}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
-              {/* Base URL for custom integrations */}
               {selectedTemplate.id === 'custom' && (
                 <div>
                   <label htmlFor="base_url" className="block text-sm font-medium text-neutral-700 mb-2">
@@ -709,7 +681,6 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
                 </div>
               )}
 
-              {/* Documentation Link */}
               {selectedTemplate.documentation_url && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <p className="text-sm text-blue-800">
@@ -726,12 +697,11 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
                 </div>
               )}
 
-              {/* Actions */}
               <div className="flex items-center justify-between pt-6 border-t border-neutral-200">
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => setCurrentStep(1)}
+                  onClick={() => integrationToEdit ? onCancel() : setCurrentStep(1)}
                 >
                   <ArrowLeftIcon className="w-4 h-4 mr-2" />
                   Back
@@ -741,19 +711,15 @@ export default function IntegrationWizard({ onComplete, onCancel }: IntegrationW
                   type="submit"
                   loading={isTesting}
                   disabled={isTesting}
+                  className="bg-primary-600 text-black hover:bg-primary-700 border-0"
                 >
-                  {isTesting ? (
-                    authMethod === 'oauth' ? 'Initiating OAuth...' : 'Testing Connection...'
-                  ) : (
-                    authMethod === 'oauth' ? 'Connect with OAuth' : 'Create & Test Integration'
-                  )}
+                  {isTesting ? (integrationToEdit ? 'Updating...' : 'Testing Connection...') : (integrationToEdit ? 'Update Integration' : 'Create & Test Integration')}
                   {!isTesting && <ArrowRightIcon className="w-4 h-4 ml-2" />}
                 </Button>
               </div>
             </form>
           )}
 
-          {/* Step 3: Success */}
           {currentStep === 3 && (
             <div className="text-center py-8">
               <CheckCircleIcon className="w-16 h-16 text-green-500 mx-auto mb-4" />

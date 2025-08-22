@@ -11,7 +11,7 @@ from langchain_openai import ChatOpenAI
 from app.core.config import settings
 from app.core.logging import log_agent_event
 from app.core.kafka_service import publish_agent_event
-from app.models.agent import Agent, AgentType, AgentStatus
+from app.models.agent import Agent as DBAgent, AgentType, AgentStatus
 from app.models.integration import Integration
 from app.db.database import get_db_session
 from app.tools.registry import tool_registry
@@ -21,23 +21,162 @@ logger = logging.getLogger(__name__)
 
 class CrewAIService:
     def __init__(self):
-        self.agents: Dict[str, CrewAIAgent] = {}
-        self.router_agent: Optional[CrewAIAgent] = None
-        self.integration_agents: Dict[str, CrewAIAgent] = {}
-        self.llm = self._initialize_llm()
+        self.main_agent = None
+        self.github_agent = None
+        self.jira_agent = None
+        self.salesforce_agent = None
+        self.slack_agent = None
+        self.zendesk_agent = None
+        self.hubspot_agent = None
+        self.crew = None
+        self._initialize_agents()
         
-    def _initialize_llm(self) -> ChatOpenAI:
-        """Initialize the LLM for all agents"""
-        openai_api_key = os.getenv('OPENAI_API_KEY')
-        if not openai_api_key:
-            raise ValueError("OPENAI_API_KEY environment variable is required")
-            
-        return ChatOpenAI(
-            model="gpt-4-turbo-preview",
-            temperature=0.1,
-            openai_api_key=openai_api_key
+    def _initialize_agents(self):
+        """Initialize CrewAI agents"""
+        # Main coordination agent with delegation enabled
+        self.main_agent = CrewAIAgent(
+            role="Business Assistant Manager",
+            goal="Coordinate business operations by delegating tasks to specialized agents",
+            backstory="You are a business operations manager who coordinates work across different business systems and delegates tasks to specialized agents.",
+            verbose=True,
+            allow_delegation=True
         )
         
+        # GitHub specialist agent
+        self.github_agent = CrewAIAgent(
+            role="GitHub Specialist",
+            goal="Handle GitHub repository operations, issues, and pull requests",
+            backstory="You are a GitHub specialist who manages repositories, creates issues, and handles version control operations.",
+            verbose=True,
+            allow_delegation=False
+        )
+        
+        # Jira specialist agent
+        self.jira_agent = CrewAIAgent(
+            role="Jira Specialist", 
+            goal="Manage Jira issues, projects, and workflows",
+            backstory="You are a Jira specialist who handles issue tracking, project management, and workflow automation.",
+            verbose=True,
+            allow_delegation=False
+        )
+        
+        # Salesforce specialist agent
+        self.salesforce_agent = CrewAIAgent(
+            role="Salesforce Specialist",
+            goal="Handle CRM operations including leads, opportunities, and customer data",
+            backstory="You are a Salesforce specialist who manages customer relationships, sales processes, and CRM data.",
+            verbose=True,
+            allow_delegation=False
+        )
+        
+        # Slack specialist agent
+        self.slack_agent = CrewAIAgent(
+            role="Slack Specialist",
+            goal="Handle team communication, channels, and messaging",
+            backstory="You are a Slack specialist who manages team communication, sends messages, and coordinates channels.",
+            verbose=True,
+            allow_delegation=False
+        )
+        
+        # Zendesk specialist agent
+        self.zendesk_agent = CrewAIAgent(
+            role="Zendesk Specialist",
+            goal="Handle customer support tickets and help desk operations", 
+            backstory="You are a Zendesk specialist who manages customer support, creates tickets, and handles help desk operations.",
+            verbose=True,
+            allow_delegation=False
+        )
+        
+        # HubSpot specialist agent
+        self.hubspot_agent = CrewAIAgent(
+            role="HubSpot Specialist",
+            goal="Handle marketing automation, contacts, and deals",
+            backstory="You are a HubSpot specialist who manages marketing campaigns, contacts, and sales deals.",
+            verbose=True,
+            allow_delegation=False
+        )
+        
+    async def process_user_query(self, query: str, user_id: str, tools: list = None, callback=None):
+        """Process user query with CrewAI crew using user's configured integrations"""
+        try:
+            # Assign user's integration tools to specialist agents
+            self._assign_tools_to_agents(tools or [])
+            
+            # Create task for the user query
+            task = Task(
+                description=f"Help the user with their request: {query}. Use the available tools to provide real data from their configured integrations.",
+                agent=self.main_agent,
+                expected_output="A helpful response with actual data from the user's integrations, not generic advice"
+            )
+            
+            # Create crew with all agents
+            all_agents = [
+                self.main_agent,
+                self.github_agent,
+                self.jira_agent, 
+                self.salesforce_agent,
+                self.slack_agent,
+                self.zendesk_agent,
+                self.hubspot_agent
+            ]
+            
+            crew = Crew(
+                agents=all_agents,
+                tasks=[task],
+                verbose=True,
+                step_callback=callback
+            )
+            
+            # Execute the crew
+            result = crew.kickoff()
+            return str(result)
+            
+        except Exception as e:
+            logger.error(f"CrewAI processing failed: {e}")
+            return f"I encountered an error processing your request: {str(e)}"
+    
+    def _assign_tools_to_agents(self, tools: list):
+        """Assign integration tools to their respective specialist agents"""
+        try:
+            from app.tools.base import CrewAITool
+            
+            # Clear existing tools
+            self.github_agent.tools = []
+            self.jira_agent.tools = []
+            self.salesforce_agent.tools = []
+            self.slack_agent.tools = []
+            self.zendesk_agent.tools = []
+            self.hubspot_agent.tools = []
+            
+            # Assign tools based on their type
+            for tool in tools:
+                tool_name = tool.tool_name.lower()
+                crewai_tool = CrewAITool(tool)
+                
+                if 'github' in tool_name:
+                    self.github_agent.tools.append(crewai_tool)
+                elif 'jira' in tool_name:
+                    self.jira_agent.tools.append(crewai_tool)
+                elif 'salesforce' in tool_name:
+                    self.salesforce_agent.tools.append(crewai_tool)
+                elif 'slack' in tool_name:
+                    self.slack_agent.tools.append(crewai_tool)
+                elif 'zendesk' in tool_name:
+                    self.zendesk_agent.tools.append(crewai_tool)
+                elif 'hubspot' in tool_name:
+                    self.hubspot_agent.tools.append(crewai_tool)
+            
+            # Log which tools were assigned
+            logger.info(f"Assigned {len(self.github_agent.tools)} GitHub tools")
+            logger.info(f"Assigned {len(self.jira_agent.tools)} Jira tools")
+            logger.info(f"Assigned {len(self.salesforce_agent.tools)} Salesforce tools")
+            logger.info(f"Assigned {len(self.slack_agent.tools)} Slack tools")
+            logger.info(f"Assigned {len(self.zendesk_agent.tools)} Zendesk tools")
+            logger.info(f"Assigned {len(self.hubspot_agent.tools)} HubSpot tools")
+            
+        except Exception as e:
+            logger.error(f"Error assigning tools to agents: {e}")
+    
     async def initialize_agents(self, db: Session):
         """Initialize all agents in the system"""
         try:

@@ -85,8 +85,8 @@ class IntegrationTemplates:
         },
         IntegrationType.GITHUB: {
             "name": "GitHub",
-            "description": "GitHub code repository and project management",
-            "required_credentials": ["token"],
+            "description": "GitHub code repository and project management", 
+            "required_credentials": ["token", "username"],
             "optional_credentials": ["organization"],
             "oauth_config": {
                 "supports_oauth": True,
@@ -504,6 +504,8 @@ class IntegrationService:
         elif auth_type == "token":
             if "token" in credentials:
                 headers["Authorization"] = f"token {credentials['token']}"
+            elif "access_token" in credentials:
+                headers["Authorization"] = f"token {credentials['access_token']}"
         
         elif auth_type == "key_token":
             # For APIs like Trello that use key and token as query params

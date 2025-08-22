@@ -23,7 +23,7 @@ class GitHubSearchTool(BaseBusinessTool):
     
     @property
     def required_credentials(self) -> List[str]:
-        return ["access_token"]
+        return ["access_token", "username"]
     
     async def _test_connection_impl(self) -> Dict[str, Any]:
         """Test GitHub connection."""
@@ -182,7 +182,7 @@ class GitHubCreateIssueTool(BaseBusinessTool):
     
     @property
     def required_credentials(self) -> List[str]:
-        return ["access_token"]
+        return ["access_token", "username"]
     
     async def _test_connection_impl(self) -> Dict[str, Any]:
         """Test by getting user repositories."""
@@ -308,7 +308,7 @@ class GitHubGetRepositoryTool(BaseBusinessTool):
     
     @property
     def required_credentials(self) -> List[str]:
-        return ["access_token"]
+        return ["access_token", "username"]
     
     async def _test_connection_impl(self) -> Dict[str, Any]:
         """Test connection."""

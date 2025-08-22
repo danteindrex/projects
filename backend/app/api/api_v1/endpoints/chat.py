@@ -21,46 +21,9 @@ from app.services.streaming_service import streaming_service, websocket_manager
 
 router = APIRouter()
 
-# WebSocket connection manager
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: Dict[str, WebSocket] = {}
-        self.user_sessions: Dict[str, List[str]] = {}  # user_id -> [session_ids]
-    
-    async def connect(self, websocket: WebSocket, user_id: str, session_id: str):
-        await websocket.accept()
-        connection_id = str(uuid.uuid4())
-        self.active_connections[connection_id] = websocket
-        
-        if user_id not in self.user_sessions:
-            self.user_sessions[user_id] = []
-        self.user_sessions[user_id].append(session_id)
-        
-        log_websocket_event(connection_id, "websocket_connected", user_id=user_id, session_id=session_id)
-        return connection_id
-    
-    def disconnect(self, connection_id: str):
-        if connection_id in self.active_connections:
-            del self.active_connections[connection_id]
-            log_websocket_event(connection_id, "websocket_disconnected")
-    
-    async def send_personal_message(self, connection_id: str, message: WebSocketMessage):
-        if connection_id in self.active_connections:
-            try:
-                await self.active_connections[connection_id].send_text(message.json())
-            except Exception as e:
-                log_websocket_event(connection_id, "websocket_send_error", error=str(e))
-    
-    async def broadcast_to_session(self, session_id: str, message: WebSocketMessage):
-        """Broadcast message to all connections in a session"""
-        for conn_id, websocket in self.active_connections.items():
-            if conn_id in self.user_sessions.get(str(session_id), []):
-                try:
-                    await websocket.send_text(message.json())
-                except Exception as e:
-                    log_websocket_event(conn_id, "websocket_broadcast_error", error=str(e))
 
-manager = ConnectionManager()
+
+
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str = None):
@@ -115,8 +78,34 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None):
                 data = await websocket.receive_text()
                 message_data = json.loads(data)
                 
-                # Process the message with real streaming
-                await process_chat_message_streaming(websocket, session_id, message_data, connection_id, user_id)
+                # Process message directly with proper streaming
+                user_message = message_data.get("message", "")
+                if user_message:
+                    logger.info(f"Processing: {user_message[:50]}...")
+                    
+                    # Get database session
+                    from app.db.database import get_db_session
+                    db = next(get_db_session())
+                    
+                    try:
+                        # Stream AI responses with proper buffer flushing
+                        async for stream_event in streaming_service.process_query_streaming(
+                            user_message, user_id, session_id, db
+                        ):
+                            await websocket.send_text(json.dumps(stream_event))
+                            await asyncio.sleep(0)  # Critical: flush WebSocket buffer
+                            
+                            if stream_event.get("type") == "final":
+                                break
+                    except Exception as e:
+                        logger.error(f"Streaming failed: {e}")
+                        await websocket.send_text(json.dumps({
+                            "type": "error", 
+                            "content": str(e),
+                            "timestamp": datetime.utcnow().isoformat()
+                        }))
+                    finally:
+                        db.close()
                 
             except WebSocketDisconnect:
                 log_websocket_event(connection_id, "websocket_disconnected")
@@ -133,101 +122,11 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None):
                 
     except Exception as e:
         log_websocket_event(connection_id or "unknown", "websocket_connection_error", error=str(e))
-    finally:
-        if connection_id:
-            manager.disconnect(connection_id)
+    
 
-async def process_chat_message_streaming(websocket: WebSocket, session_id: str, message_data: dict, connection_id: str, user_id: str):
-    """Process incoming chat messages with real streaming"""
-    try:
-        # Extract message content
-        user_message = message_data.get("message", "")
-        if not user_message:
-            return
-        
-        # Store user message in database
-        from app.db.database import get_db_session
-        db = next(get_db_session())
-        
-        try:
-            # Get or create chat session
-            db_session = db.query(ChatSession).filter(ChatSession.id == int(session_id.split("_")[-1])).first()
-            if not db_session:
-                db_session = ChatSession(
-                    title=user_message[:50] + "..." if len(user_message) > 50 else user_message,
-                    user_id=int(user_id),
-                    tenant_id="default"
-                )
-                db.add(db_session)
-                db.commit()
-                db.refresh(db_session)
-            
-            # Store user message
-            db_message = ChatMessage(
-                content=user_message,
-                message_type="user",
-                role="user",
-                session_id=db_session.id,
-                tenant_id=db_session.tenant_id
-            )
-            db.add(db_message)
-            db.commit()
-            
-            # Process with real streaming service
-            assistant_content = ""
-            async for stream_event in streaming_service.process_query_streaming(
-                user_message, user_id, session_id, db
-            ):
-                # Send each streaming event to WebSocket
-                await websocket.send_text(json.dumps(stream_event))
-                
-                # Collect final content for database storage
-                if stream_event.get("type") == "final":
-                    assistant_content = stream_event.get("content", "")
-            
-            # Store assistant response
-            if assistant_content:
-                assistant_message = ChatMessage(
-                    content=assistant_content,
-                    message_type="assistant",
-                    role="assistant",
-                    session_id=db_session.id,
-                    tenant_id=db_session.tenant_id
-                )
-                db.add(assistant_message)
-                db.commit()
-            
-            # Update session activity
-            db_session.total_messages = db.query(ChatMessage).filter(
-                ChatMessage.session_id == db_session.id
-            ).count()
-            db_session.last_activity = datetime.utcnow()
-            db.commit()
-            
-        finally:
-            db.close()
-        
-        # Publish to Kafka
-        await publish_chat_event(session_id, "message_processed", {
-            "user_message": user_message,
-            "user_id": user_id
-        })
-        
-    except Exception as e:
-        log_websocket_event(connection_id, "message_processing_error", error=str(e))
-        # Send error to client
-        await websocket.send_text(json.dumps({
-            "type": "error",
-            "content": f"Failed to process message: {str(e)}",
-            "timestamp": datetime.utcnow().isoformat()
-        }))
-        raise
 
-# Note: simulate_tool_calling is no longer needed as we use real tool execution
 
-# Note: generate_chat_response is no longer needed as we use real CrewAI processing
 
-# Note: stream_response is no longer needed as streaming is handled by the streaming service
 
 # REST endpoints for chat management
 @router.post("/sessions", response_model=ChatResponse)

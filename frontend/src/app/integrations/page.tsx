@@ -27,6 +27,7 @@ export default function IntegrationsPage() {
   const router = useRouter();
   const [integrations, setIntegrations] = useState([]);
   const [showWizard, setShowWizard] = useState(false);
+  const [editingIntegration, setEditingIntegration] = useState(null);
   const [loadingIntegrations, setLoadingIntegrations] = useState(true);
 
   useEffect(() => {
@@ -40,53 +41,49 @@ export default function IntegrationsPage() {
   const loadIntegrations = async () => {
     try {
       console.log('Loading integrations...');
-      console.log('User authenticated:', apiClient.isAuthenticated());
-      console.log('Token:', apiClient.getToken());
-      
       const data = await apiClient.getIntegrations();
       console.log('Integrations loaded:', data);
       setIntegrations(data || []);
     } catch (error) {
       console.error('Failed to load integrations:', error);
-      setIntegrations([]); // Start with empty array instead of mock data
+      setIntegrations([]);
     } finally {
       setLoadingIntegrations(false);
     }
   };
 
-  // OAuth and integration management functions
   const handleRefreshToken = async (integration: any) => {
     try {
-      // Check if integration has refresh token
       if (!integration.credentials?.refresh_token) {
         alert('No refresh token available. Please reconnect the integration.');
         return;
       }
-
       await apiClient.refreshOAuthToken(integration.id, integration.credentials.refresh_token);
       alert('Token refreshed successfully!');
-      loadIntegrations(); // Reload to get updated token status
+      loadIntegrations();
     } catch (error) {
       console.error('Failed to refresh token:', error);
       alert('Failed to refresh token. Please try reconnecting the integration.');
     }
   };
 
-  const handleRevokeIntegration = async (integrationId: number) => {
+  const handleRevokeIntegration = async (integration: any) => {
     try {
-      await apiClient.revokeOAuthToken(integrationId);
-      await apiClient.deleteIntegration(integrationId);
-      alert('Integration revoked and deleted successfully!');
+      if (integration.auth_type === 'oauth2') {
+        await apiClient.revokeOAuthToken(integration.id);
+      }
+      await apiClient.deleteIntegration(integration.id);
+      alert('Integration deleted successfully!');
       loadIntegrations();
     } catch (error) {
-      console.error('Failed to revoke integration:', error);
-      alert('Failed to revoke integration.');
+      console.error('Failed to delete integration:', error);
+      alert('Failed to delete integration.');
     }
   };
 
   const handleTestIntegration = async (integrationId: number) => {
     try {
-      const result = await apiClient.testIntegration(integrationId);
+      await apiClient.testIntegration(integrationId);
       alert('Integration test successful!');
     } catch (error) {
       console.error('Integration test failed:', error);
@@ -95,9 +92,27 @@ export default function IntegrationsPage() {
   };
 
   const handleCreateIntegration = (integrationData: any) => {
-    console.log('Creating integration:', integrationData);
     setShowWizard(false);
     loadIntegrations();
+  };
+
+  const handleUpdateIntegration = async (integrationData: any) => {
+    if (!editingIntegration) return;
+
+    try {
+      await apiClient.updateIntegration(editingIntegration.id, integrationData);
+      alert('Integration updated successfully!');
+      setEditingIntegration(null);
+      loadIntegrations();
+    } catch (error) {
+      console.error('Failed to update integration:', error);
+      alert('Failed to update integration.');
+    }
+  };
+
+  const handleConfigureIntegration = (integration: any) => {
+    setEditingIntegration(integration);
+    setShowWizard(true);
   };
 
   if (isLoading) {
@@ -124,7 +139,7 @@ export default function IntegrationsPage() {
             <p className="text-neutral-600">Manage your business system connections</p>
           </div>
           <Button
-            onClick={() => setShowWizard(true)}
+            onClick={() => { setEditingIntegration(null); setShowWizard(true); }}
             className="flex items-center gap-2 bg-green-200 hover:bg-green-300 text-black"
           >
             <PlusIcon className="h-5 w-5" />
@@ -354,7 +369,7 @@ export default function IntegrationsPage() {
                             variant="outline" 
                             size="sm" 
                             className="flex-1 flex items-center justify-center space-x-1"
-                            onClick={() => alert('Configuration editing coming soon!')}
+                            onClick={() => handleConfigureIntegration(integration)}
                           >
                             <Cog6ToothIcon className="h-4 w-4" />
                             <span>Configure</span>
@@ -367,7 +382,7 @@ export default function IntegrationsPage() {
                           className="text-red-600 hover:text-red-700 hover:border-red-300"
                           onClick={() => {
                             if (confirm('Are you sure you want to delete this integration?')) {
-                              handleRevokeIntegration(integration.id);
+                              handleRevokeIntegration(integration);
                             }
                           }}
                         >
@@ -411,7 +426,7 @@ export default function IntegrationsPage() {
               </div>
             </div>
             <Button
-              onClick={() => setShowWizard(true)}
+              onClick={() => { setEditingIntegration(null); setShowWizard(true); }}
               className="flex items-center gap-2 mx-auto px-6 py-3 text-base bg-green-200 hover:bg-green-300 text-black"
               size="lg"
             >
@@ -421,12 +436,13 @@ export default function IntegrationsPage() {
           </div>
         )}
 
-        {showWizard && (
+        {(showWizard || editingIntegration) && (
           <div className="fixed inset-0 backdrop-blur-md flex items-center justify-center z-50">
             <div className="bg-white rounded-2xl p-8 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto shadow-2xl">
               <IntegrationWizard
-                onComplete={handleCreateIntegration}
-                onCancel={() => setShowWizard(false)}
+                onComplete={editingIntegration ? handleUpdateIntegration : handleCreateIntegration}
+                onCancel={() => { setShowWizard(false); setEditingIntegration(null); }}
+                integrationToEdit={editingIntegration}
               />
             </div>
           </div>

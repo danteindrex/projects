@@ -40,8 +40,8 @@ export default function IntegrationAnalytics() {
       setError(null);
       
       const data = await apiClient.getIntegrations();
-      if (!data) {
-        throw new Error('Integrations data not available');
+      if (!data || !Array.isArray(data)) {
+        throw new Error('Invalid integrations data received from server');
       }
       
       // Only show active integrations that have analytics support
@@ -55,8 +55,20 @@ export default function IntegrationAnalytics() {
       if (activeIntegrations.length > 0 && !activeTab) {
         setActiveTab(activeIntegrations[0].id.toString());
       }
-    } catch (err) {
-      setError('Failed to load integrations');
+      
+      // If no active integrations, show helpful message
+      if (activeIntegrations.length === 0 && data.length > 0) {
+        const inactiveCount = data.filter((integration: Integration) => 
+          isAnalyticsSupported(integration.integration_type)
+        ).length;
+        
+        if (inactiveCount > 0) {
+          setError(`You have ${inactiveCount} supported integration(s) that are not active. Please activate them in the Integrations section to view analytics.`);
+        }
+      }
+    } catch (err: any) {
+      const errorMessage = err?.message || 'Failed to load integrations';
+      setError(errorMessage);
       console.error('Failed to load integrations:', err);
     } finally {
       setLoading(false);
