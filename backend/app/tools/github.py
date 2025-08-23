@@ -23,12 +23,27 @@ class GitHubSearchTool(BaseBusinessTool):
     
     @property
     def required_credentials(self) -> List[str]:
-        return ["access_token", "username"]
+        # Check for access_token first, fallback to api_key
+        if "access_token" in self.credentials.credentials:
+            return ["access_token"]
+        elif "api_key" in self.credentials.credentials:
+            return ["api_key"]
+        else:
+            return ["access_token"]  # Default expectation
+    
+    def _get_access_token(self) -> str:
+        """Get access token from credentials, supporting multiple key names."""
+        creds = self.credentials.credentials
+        return creds.get("access_token") or creds.get("api_key") or ""
     
     async def _test_connection_impl(self) -> Dict[str, Any]:
         """Test GitHub connection."""
+        token = self._get_access_token()
+        if not token:
+            raise ValueError("No access token found in credentials")
+            
         headers = {
-            "Authorization": f"token {self.credentials.credentials['access_token']}",
+            "Authorization": f"token {token}",
             "Accept": "application/vnd.github.v3+json",
             "User-Agent": "BusinessPlatform/1.0"
         }
@@ -182,12 +197,23 @@ class GitHubCreateIssueTool(BaseBusinessTool):
     
     @property
     def required_credentials(self) -> List[str]:
-        return ["access_token", "username"]
+        # Check for access_token first, fallback to api_key
+        if "access_token" in self.credentials.credentials:
+            return ["access_token"]
+        elif "api_key" in self.credentials.credentials:
+            return ["api_key"]
+        else:
+            return ["access_token"]  # Default expectation
+    
+    def _get_access_token(self) -> str:
+        """Get access token from credentials, supporting multiple key names."""
+        creds = self.credentials.credentials
+        return creds.get("access_token") or creds.get("api_key") or ""
     
     async def _test_connection_impl(self) -> Dict[str, Any]:
         """Test by getting user repositories."""
         headers = {
-            "Authorization": f"token {self.credentials.credentials['access_token']}",
+            "Authorization": f"token {self._get_access_token()}",
             "Accept": "application/vnd.github.v3+json",
             "User-Agent": "BusinessPlatform/1.0"
         }
@@ -308,7 +334,18 @@ class GitHubGetRepositoryTool(BaseBusinessTool):
     
     @property
     def required_credentials(self) -> List[str]:
-        return ["access_token", "username"]
+        # Check for access_token first, fallback to api_key
+        if "access_token" in self.credentials.credentials:
+            return ["access_token"]
+        elif "api_key" in self.credentials.credentials:
+            return ["api_key"]
+        else:
+            return ["access_token"]  # Default expectation
+    
+    def _get_access_token(self) -> str:
+        """Get access token from credentials, supporting multiple key names."""
+        creds = self.credentials.credentials
+        return creds.get("access_token") or creds.get("api_key") or ""
     
     async def _test_connection_impl(self) -> Dict[str, Any]:
         """Test connection."""
@@ -432,4 +469,130 @@ class GitHubGetRepositoryTool(BaseBusinessTool):
                 tool_name=self.tool_name,
                 execution_time=execution_time,
                 metadata={"action": "get_repository", "repository": repository}
+            )
+
+
+@register_tool("github", {"category": ToolCategory.READ, "priority": 1})
+class GitHubListRepositoriesTool(BaseBusinessTool):
+    """List all repositories for the authenticated user."""
+    
+    @property
+    def tool_name(self) -> str:
+        return "github_list_repositories"
+    
+    @property
+    def description(self) -> str:
+        return "Get a list of all repositories (public and private) for the authenticated user."
+    
+    @property
+    def required_credentials(self) -> List[str]:
+        # Check for access_token first, fallback to api_key
+        if "access_token" in self.credentials.credentials:
+            return ["access_token"]
+        elif "api_key" in self.credentials.credentials:
+            return ["api_key"]
+        else:
+            return ["access_token"]  # Default expectation
+    
+    def _get_access_token(self) -> str:
+        """Get access token from credentials, supporting multiple key names."""
+        creds = self.credentials.credentials
+        return creds.get("access_token") or creds.get("api_key") or ""
+    
+    async def _test_connection_impl(self) -> Dict[str, Any]:
+        """Test by getting user repositories."""
+        headers = {
+            "Authorization": f"token {self._get_access_token()}",
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "BusinessPlatform/1.0"
+        }
+        
+        url = "https://api.github.com/user/repos"
+        params = {"per_page": 5}
+        
+        response = await self._make_request("GET", url, headers=headers, params=params)
+        repos = response.json()
+        
+        return {
+            "accessible_repos": [repo.get("full_name") for repo in repos],
+            "total_repos": len(repos)
+        }
+    
+    async def execute(self, **kwargs) -> ToolExecutionResult:
+        """List all user repositories."""
+        start_time = datetime.now()
+        
+        try:
+            await self.emit_event(ToolExecutionEvent(
+                type="start",
+                tool_name=self.tool_name,
+                message="Fetching all user repositories..."
+            ))
+            
+            headers = {
+                "Authorization": f"token {self.credentials.credentials['access_token']}",
+                "Accept": "application/vnd.github.v3+json",
+                "User-Agent": "BusinessPlatform/1.0"
+            }
+            
+            url = "https://api.github.com/user/repos"
+            params = {"per_page": 100, "sort": "updated"}
+            
+            await self.emit_event(ToolExecutionEvent(
+                type="progress",
+                tool_name=self.tool_name,
+                message="Retrieving repository list..."
+            ))
+            
+            response = await self._make_request("GET", url, headers=headers, params=params)
+            repos = response.json()
+            
+            # Process repository data
+            processed_repos = []
+            for repo in repos:
+                processed_repos.append({
+                    "name": repo.get("name"),
+                    "full_name": repo.get("full_name"),
+                    "description": repo.get("description"),
+                    "url": repo.get("html_url"),
+                    "private": repo.get("private", False),
+                    "language": repo.get("language"),
+                    "stars": repo.get("stargazers_count", 0),
+                    "forks": repo.get("forks_count", 0),
+                    "updated_at": repo.get("updated_at"),
+                    "size": repo.get("size", 0)
+                })
+            
+            execution_time = (datetime.now() - start_time).total_seconds()
+            
+            await self.emit_event(ToolExecutionEvent(
+                type="complete",
+                tool_name=self.tool_name,
+                message=f"Retrieved {len(processed_repos)} repositories"
+            ))
+            
+            return ToolExecutionResult(
+                success=True,
+                data={"repositories": processed_repos, "total_count": len(processed_repos)},
+                tool_name=self.tool_name,
+                execution_time=execution_time,
+                metadata={"action": "list_repositories"}
+            )
+            
+        except Exception as e:
+            execution_time = (datetime.now() - start_time).total_seconds()
+            error_msg = str(e)
+            
+            await self.emit_event(ToolExecutionEvent(
+                type="error",
+                tool_name=self.tool_name,
+                message=f"Failed to list repositories: {error_msg}"
+            ))
+            
+            return ToolExecutionResult(
+                success=False,
+                error=error_msg,
+                tool_name=self.tool_name,
+                execution_time=execution_time,
+                metadata={"action": "list_repositories"}
             )

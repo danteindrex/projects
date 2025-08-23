@@ -19,11 +19,22 @@ class EncryptionService:
         if hasattr(settings, 'MASTER_ENCRYPTION_KEY') and settings.MASTER_ENCRYPTION_KEY:
             return base64.urlsafe_b64decode(settings.MASTER_ENCRYPTION_KEY)
         
-        # For development, generate a key
+        # For development, use a persistent key file
         if settings.ENVIRONMENT == "development":
-            key = Fernet.generate_key()
-            logger.warning("Generated new encryption key for development. Store this securely in production!")
-            return key
+            key_file = ".dev_encryption_key"
+            if os.path.exists(key_file):
+                # Load existing key
+                with open(key_file, 'rb') as f:
+                    key = f.read()
+                logger.info("Loaded existing development encryption key")
+                return key
+            else:
+                # Generate new key and save it
+                key = Fernet.generate_key()
+                with open(key_file, 'wb') as f:
+                    f.write(key)
+                logger.warning("Generated new development encryption key and saved to .dev_encryption_key")
+                return key
         
         raise ValueError("MASTER_ENCRYPTION_KEY must be set in production")
     

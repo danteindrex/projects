@@ -325,8 +325,8 @@ async def get_integration_metrics(
 @router.post("/integrations/{integration_id}/test")
 async def trigger_integration_test(
     integration_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Trigger a test of an integration (generates monitoring events)"""
     

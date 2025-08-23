@@ -6,7 +6,7 @@ class IntegrationBase(BaseModel):
     name: str
     description: Optional[str] = None
     integration_type: IntegrationType
-    base_url: HttpUrl
+    base_url: str  # Changed from HttpUrl to str to match database model
     config: Optional[Dict[str, Any]] = {}
     rate_limit: Optional[int] = 100
     timeout: Optional[int] = 30
@@ -40,14 +40,18 @@ class IntegrationResponse(IntegrationBase):
     tenant_id: str
     status: IntegrationStatus
     health_status: str
-    error_count: int
-    last_error: Optional[str]
-    last_health_check: Optional[str]
-    created_at: Optional[str]
-    updated_at: Optional[str]
+    error_count: Optional[int] = 0  # Make nullable with default
+    last_error: Optional[str] = None
+    last_health_check: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
     
     class Config:
         from_attributes = True
+        # Allow string for base_url since the database stores it as String, not HttpUrl
+        json_encoders = {
+            str: lambda v: str(v) if v else None
+        }
 
 class IntegrationDataResponse(BaseModel):
     """Response for integration-specific data endpoints"""

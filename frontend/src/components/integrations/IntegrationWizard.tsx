@@ -23,12 +23,34 @@ const integrationSchema = z.object({
   description: z.string().optional(),
   integration_type: z.string().min(1, 'Please select an integration type'),
   base_url: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
+  
+  // Generic credential fields
   token: z.string().optional(),
   username: z.string().optional(),
   api_key: z.string().optional(),
   api_token: z.string().optional(),
   client_id: z.string().optional(),
   client_secret: z.string().optional(),
+  
+  // Integration-specific credential fields
+  access_token: z.string().optional(),
+  bot_token: z.string().optional(),
+  domain: z.string().optional(),
+  email: z.string().optional(),
+  subdomain: z.string().optional(),
+  security_token: z.string().optional(),
+  password: z.string().optional(),
+  access_key: z.string().optional(),
+  secret_key: z.string().optional(),
+  tenant_id: z.string().optional(),
+  subscription_id: z.string().optional(),
+  region: z.string().optional(),
+  refresh_token: z.string().optional(),
+  
+  // Configuration fields
+  rate_limit: z.number().optional(),
+  timeout: z.number().optional(),
+  config: z.record(z.any()).optional(),
 }).passthrough();
 
 type IntegrationFormData = z.infer<typeof integrationSchema>;
@@ -227,22 +249,93 @@ export default function IntegrationWizard({ onComplete, onCancel, integrationToE
   const handleCredentialFlow = async (data: IntegrationFormData) => {
     if (!selectedTemplate) return;
 
-    const credentials: Record<string, string> = {};
-    selectedTemplate.config.required_credentials.forEach(field => {
-      const value = (data as any)[field];
-      credentials[field] = value || '';
-    });
+    try {
+      // Transform form data to match backend API schema
+      const credentials: Record<string, string> = {};
+      
+      // Collect all credential fields from the form data
+      const allCredentialFields = [
+        // Generic fields
+        'token', 'username', 'api_key', 'api_token', 'client_id', 'client_secret',
+        // Integration-specific fields
+        'access_token', 'bot_token', 'domain', 'email', 'subdomain', 'security_token',
+        'password', 'access_key', 'secret_key', 'tenant_id', 'subscription_id', 'region', 'refresh_token'
+      ];
+      
+      // Map form fields to credentials object
+      allCredentialFields.forEach(field => {
+        const value = (data as any)[field];
+        if (value && value.trim()) {
+          credentials[field] = value.trim();
+        }
+      });
+      
+      // Also collect any additional fields that might be in the template
+      if (selectedTemplate.required_credentials || selectedTemplate.config?.required_credentials) {
+        const requiredCreds = selectedTemplate.required_credentials || selectedTemplate.config?.required_credentials || [];
+        requiredCreds.forEach(field => {
+          const value = (data as any)[field];
+          if (value && value.trim()) {
+            credentials[field] = value.trim();
+          }
+        });
+      }
+      
+      if (selectedTemplate.optional_credentials || selectedTemplate.config?.optional_credentials) {
+        const optionalCreds = selectedTemplate.optional_credentials || selectedTemplate.config?.optional_credentials || [];
+        optionalCreds.forEach(field => {
+          const value = (data as any)[field];
+          if (value && value.trim()) {
+            credentials[field] = value.trim();
+          }
+        });
+      }
+      
+      // Build base URL if not provided
+      let baseUrl = data.base_url;
+      if (!baseUrl && (selectedTemplate.base_url_template || selectedTemplate.config?.base_url_template)) {
+        // Try to build from template
+        baseUrl = selectedTemplate.base_url_template || selectedTemplate.config?.base_url_template || '';
+      }
+      
+      const integrationData = {
+        name: data.name,
+        description: data.description || selectedTemplate.description,
+        integration_type: data.integration_type,
+        base_url: baseUrl || selectedTemplate.base_url_template || selectedTemplate.config?.base_url_template || '',
+        credentials: credentials,
+        config: {
+          auth_method: authMethod,
+          oauth_scopes: scopes,
+          ...data.config
+        },
+        rate_limit: data.rate_limit || 100,
+        timeout: data.timeout || 30
+      };
 
-    const integrationPayload = {
-      name: data.name,
-      description: data.description,
-      integration_type: data.integration_type,
-      base_url: data.base_url || undefined,
-      credentials,
-      config: selectedTemplate.config.default_settings || {},
-    };
-    
-    onComplete(integrationPayload);
+      console.log('Creating integration with data:', integrationData);
+      
+      const newIntegration = await apiClient.createIntegration(integrationData);
+      
+      setTestResult({
+        success: true,
+        message: `Integration "${newIntegration.name}" created successfully!`
+      });
+      
+      // Wait a moment to show success message
+      setTimeout(() => {
+        onComplete(newIntegration);
+      }, 1500);
+      
+    } catch (err) {
+      console.error('❌ Integration creation failed:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create integration';
+      setError(errorMessage);
+      setTestResult({
+        success: false,
+        message: errorMessage
+      });
+    }
   };
 
   const handleOAuthFlow = async (data: IntegrationFormData) => {
@@ -261,7 +354,7 @@ export default function IntegrationWizard({ onComplete, onCancel, integrationToE
       client_secret: clientSecret,
       name: data.name,
       description: data.description,
-      config: selectedTemplate.config.default_settings || {}
+      config: selectedTemplate.default_settings || selectedTemplate.config?.default_settings || {}
     };
 
     const authResponse = await apiClient.initiateOAuth({
@@ -643,23 +736,56 @@ export default function IntegrationWizard({ onComplete, onCancel, integrationToE
                   </h4>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {selectedTemplate.config.required_credentials.map((field) => {
+                    {(selectedTemplate.required_credentials || selectedTemplate.config?.required_credentials || []).map((field) => {
+                      // Map template field names to form field names
+                      const formFieldName = field as keyof IntegrationFormData;
+                      
                       return (
                         <div key={field}>
                           <label htmlFor={field} className="block text-sm font-medium text-neutral-700 mb-2">
                             {field.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')} *
                           </label>
                           <input
-                            {...register(field as keyof IntegrationFormData, { required: true })}
-                            type={field.includes('password') || field.includes('secret') || field.includes('token') ? 'password' : 'text'}
+                            {...register(formFieldName, { required: true })}
+                            type={field.includes('password') || field.includes('secret') || field.includes('token') || field.includes('key') ? 'password' : 'text'}
                             id={field}
                             className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                             placeholder={`Enter your ${field.replace('_', ' ')}`}
                           />
+                          {errors[formFieldName] && (
+                            <p className="mt-1 text-sm text-red-600">{errors[formFieldName]?.message}</p>
+                          )}
                         </div>
                       );
                     })}
                   </div>
+                  
+                  {/* Show optional credentials if any */}
+                  {(selectedTemplate.optional_credentials || selectedTemplate.config?.optional_credentials || []).length > 0 && (
+                    <div className="mt-4">
+                      <h5 className="text-sm font-medium text-neutral-700 mb-2">Optional Credentials</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {(selectedTemplate.optional_credentials || selectedTemplate.config?.optional_credentials || []).map((field) => {
+                          const formFieldName = field as keyof IntegrationFormData;
+                          
+                          return (
+                            <div key={field}>
+                              <label htmlFor={field} className="block text-sm font-medium text-neutral-600 mb-2">
+                                {field.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')} (Optional)
+                              </label>
+                              <input
+                                {...register(formFieldName)}
+                                type={field.includes('password') || field.includes('secret') || field.includes('token') || field.includes('key') ? 'password' : 'text'}
+                                id={field}
+                                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                placeholder={`Enter your ${field.replace('_', ' ')} (optional)`}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -22,13 +22,28 @@ import {
   EyeIcon
 } from '@heroicons/react/24/outline';
 
+interface Integration {
+  id: number;
+  name: string;
+  description?: string;
+  integration_type: string;
+  status: string;
+  config?: any;
+  auth_type?: string;
+  credentials?: any;
+  last_sync?: string;
+  token_expires_at?: string;
+}
+
 export default function IntegrationsPage() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
-  const [integrations, setIntegrations] = useState([]);
+  const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [showWizard, setShowWizard] = useState(false);
-  const [editingIntegration, setEditingIntegration] = useState(null);
+  const [editingIntegration, setEditingIntegration] = useState<Integration | null>(null);
   const [loadingIntegrations, setLoadingIntegrations] = useState(true);
+  const [expandedIntegrations, setExpandedIntegrations] = useState<Set<number>>(new Set());
+  const [deletingIntegrations, setDeletingIntegrations] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -52,7 +67,7 @@ export default function IntegrationsPage() {
     }
   };
 
-  const handleRefreshToken = async (integration: any) => {
+  const handleRefreshToken = async (integration: Integration) => {
     try {
       if (!integration.credentials?.refresh_token) {
         alert('No refresh token available. Please reconnect the integration.');
@@ -67,17 +82,41 @@ export default function IntegrationsPage() {
     }
   };
 
-  const handleRevokeIntegration = async (integration: any) => {
+  const handleRevokeIntegration = async (integration: Integration) => {
+    // Add to deleting set for visual feedback
+    setDeletingIntegrations(prev => new Set(prev).add(integration.id));
+    
     try {
       if (integration.auth_type === 'oauth2') {
-        await apiClient.revokeOAuthToken(integration.id);
+        try {
+          await apiClient.revokeOAuthToken(integration.id);
+        } catch (oauthError) {
+          console.warn('OAuth revoke failed (continuing with delete):', oauthError);
+        }
       }
       await apiClient.deleteIntegration(integration.id);
       alert('Integration deleted successfully!');
-      loadIntegrations();
-    } catch (error) {
+      await loadIntegrations(); // Ensure reload completes
+    } catch (error: any) {
       console.error('Failed to delete integration:', error);
-      alert('Failed to delete integration.');
+      const errorMessage = error?.message || 'Failed to delete integration.';
+      
+      // Show more specific error messages
+      if (errorMessage.includes('Authentication required')) {
+        alert('Your session has expired. Please log in again.');
+      } else if (errorMessage.includes('not found')) {
+        alert('This integration no longer exists. Refreshing...');
+        await loadIntegrations();
+      } else {
+        alert(`Failed to delete integration: ${errorMessage}`);
+      }
+    } finally {
+      // Remove from deleting set
+      setDeletingIntegrations(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(integration.id);
+        return newSet;
+      });
     }
   };
 
@@ -110,9 +149,21 @@ export default function IntegrationsPage() {
     }
   };
 
-  const handleConfigureIntegration = (integration: any) => {
+  const handleConfigureIntegration = (integration: Integration) => {
     setEditingIntegration(integration);
     setShowWizard(true);
+  };
+
+  const toggleExpandIntegration = (id: number) => {
+    setExpandedIntegrations(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
   };
 
   if (isLoading) {
@@ -214,9 +265,9 @@ export default function IntegrationsPage() {
 
             {/* Integration Cards Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-              {integrations.map((integration: any) => {
+              {integrations.map((integration) => {
                 const getIntegrationIcon = (type: string) => {
-                  const icons = {
+                  const icons: Record<string, string> = {
                     jira: '🎯', asana: '📋', trello: '📊',
                     zendesk: '🎫', freshdesk: '🆘',
                     salesforce: '☁️', hubspot: '🔶',
@@ -293,7 +344,7 @@ export default function IntegrationsPage() {
                         <div className="mb-4">
                           <p className="text-xs font-medium text-neutral-500 mb-2">Monitoring:</p>
                           <div className="flex flex-wrap gap-1">
-                            {integration.config.monitoring_preferences.slice(0, 3).map((metric, idx) => (
+                            {integration.config.monitoring_preferences.slice(0, 3).map((metric: string, idx: number) => (
                               <span key={idx} className={`inline-flex px-2 py-1 text-xs rounded-full ${
                                 statusColor === 'green' ? 'bg-green-100 text-green-700' :
                                 statusColor === 'red' ? 'bg-red-100 text-red-700' :
@@ -307,6 +358,57 @@ export default function IntegrationsPage() {
                               <span className="inline-flex px-2 py-1 text-xs rounded-full bg-neutral-100 text-neutral-600">
                                 +{integration.config.monitoring_preferences.length - 3} more
                               </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Display full configuration */}
+                      {integration.config && Object.keys(integration.config).filter(k => k !== 'monitoring_preferences').length > 0 && (
+                        <div className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                          <p className="text-xs font-medium text-neutral-600 mb-2">Configuration:</p>
+                          <div className="space-y-1">
+                            {Object.entries(integration.config)
+                              .filter(([key]) => key !== 'monitoring_preferences')
+                              .map(([key, value]) => (
+                                <div key={key} className="flex items-start gap-2 text-xs">
+                                  <span className="font-medium text-neutral-700 min-w-[80px]">{key.replace(/_/g, ' ')}:</span>
+                                  <span className="text-neutral-600 break-all">
+                                    {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
+                                  </span>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Expanded details view */}
+                      {expandedIntegrations.has(integration.id) && (
+                        <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <p className="text-xs font-medium text-blue-800 mb-2">Integration Details:</p>
+                          <div className="space-y-2 text-xs">
+                            <div>
+                              <span className="font-medium text-blue-700">ID:</span> {integration.id}
+                            </div>
+                            <div>
+                              <span className="font-medium text-blue-700">Type:</span> {integration.integration_type}
+                            </div>
+                            <div>
+                              <span className="font-medium text-blue-700">Status:</span> {integration.status}
+                            </div>
+                            {integration.credentials && (
+                              <div>
+                                <span className="font-medium text-blue-700">Credentials:</span>
+                                <div className="mt-1 p-2 bg-white rounded border border-blue-100">
+                                  {Object.entries(integration.credentials).map(([key, value]) => (
+                                    <div key={key} className="text-gray-600">
+                                      {key}: {key.includes('token') || key.includes('secret') || key.includes('password') 
+                                        ? '••••••••' 
+                                        : String(value)}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -347,10 +449,20 @@ export default function IntegrationsPage() {
                         <Button 
                           variant="outline" 
                           size="sm" 
+                          className="flex items-center justify-center space-x-1 px-2"
+                          onClick={() => toggleExpandIntegration(integration.id)}
+                        >
+                          <EyeIcon className="h-4 w-4" />
+                          <span>{expandedIntegrations.has(integration.id) ? 'Hide' : 'Details'}</span>
+                        </Button>
+                        
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
                           className="flex-1 flex items-center justify-center space-x-1"
                           onClick={() => handleTestIntegration(integration.id)}
                         >
-                          <EyeIcon className="h-4 w-4" />
+                          <CheckCircleIcon className="h-4 w-4" />
                           <span>Test</span>
                         </Button>
                         
@@ -379,14 +491,19 @@ export default function IntegrationsPage() {
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          className="text-red-600 hover:text-red-700 hover:border-red-300"
+                          className="text-red-600 hover:text-red-700 hover:border-red-300 disabled:opacity-50"
+                          disabled={deletingIntegrations.has(integration.id)}
                           onClick={() => {
                             if (confirm('Are you sure you want to delete this integration?')) {
                               handleRevokeIntegration(integration);
                             }
                           }}
                         >
-                          <TrashIcon className="h-4 w-4" />
+                          {deletingIntegrations.has(integration.id) ? (
+                            <div className="h-4 w-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <TrashIcon className="h-4 w-4" />
+                          )}
                         </Button>
                       </div>
                     </div>

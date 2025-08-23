@@ -113,14 +113,36 @@ class StreamingCrewAIService:
             
             logger.info(f"Processing query for user {user_id}: {query[:50]}...")
             
-            # Skip database operations for now - test with empty tools
-            available_tools = []
+            # LOAD ACTUAL TOOLS FROM USER'S INTEGRATIONS
+            from app.models.integration import Integration, IntegrationStatus
+            from app.tools.registry import tool_registry
             
-            # Create and run CrewAI crew
+            user_integrations = db.query(Integration).filter(
+                Integration.owner_id == user_id,
+                Integration.status == IntegrationStatus.ACTIVE
+            ).all()
+            
+            # Load tools for each integration WITH CREDENTIALS
+            available_tools = []
+            for integration in user_integrations:
+                tools = await tool_registry.load_tools_for_integration(integration)
+                available_tools.extend(tools)
+            
+            logger.info(f"Loaded {len(available_tools)} tools for user {user_id}")
+            
+            # Debug: Check what tools and credentials were loaded
+            for tool in available_tools:
+                logger.info(f"Tool: {tool.tool_name}")
+                logger.info(f"Has credentials: {hasattr(tool, 'credentials')}")
+                if hasattr(tool, 'credentials'):
+                    logger.info(f"Credential keys: {list(tool.credentials.credentials.keys())}")
+                    logger.info(f"Has access_token: {'access_token' in tool.credentials.credentials}")
+            
+            # Create and run CrewAI crew with ACTUAL TOOLS
             result = await self.crewai_service.process_user_query(
                 query=query,
                 user_id=user_id,
-                tools=available_tools,
+                tools=available_tools,  # ← NOW HAS TOOLS WITH CREDENTIALS
                 callback=self._stream_callback(session_id)
             )
             

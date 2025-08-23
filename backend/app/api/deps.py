@@ -6,7 +6,7 @@ from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.db.database import get_db_session
 from app.models.user import User
-from app.core.security import get_current_active_user
+from app.core.security import get_current_user as security_get_current_user, get_current_active_user
 
 def get_db():
     """Get database session dependency"""
@@ -16,9 +16,8 @@ def get_db():
     finally:
         db.close()
 
-def get_current_user(db: Session = Depends(get_db)) -> User:
-    """Get current authenticated user"""
-    return get_current_active_user(db)
+# Use the security module's get_current_user directly
+get_current_user = security_get_current_user
 
 def get_current_verified_user(
     current_user: User = Depends(get_current_user)

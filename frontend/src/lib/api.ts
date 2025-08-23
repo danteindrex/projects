@@ -709,6 +709,10 @@ class ApiClient {
           case 401:
             errorMessage = 'Authentication required. Please log in again.';
             this.removeToken(); // Clear invalid token
+            // Redirect to login page
+            if (typeof window !== 'undefined') {
+              window.location.href = '/login';
+            }
             break;
           case 403:
             errorMessage = 'Access denied. You don\'t have permission for this action.';

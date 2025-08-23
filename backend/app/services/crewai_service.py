@@ -48,7 +48,7 @@ class CrewAIService:
             goal="Handle GitHub repository operations, issues, and pull requests",
             backstory="You are a GitHub specialist who manages repositories, creates issues, and handles version control operations.",
             verbose=True,
-            allow_delegation=False
+            allow_delegation=True  # ← ENABLE DELEGATION!
         )
         
         # Jira specialist agent
@@ -104,9 +104,15 @@ class CrewAIService:
             
             # Create task for the user query
             task = Task(
-                description=f"Help the user with their request: {query}. Use the available tools to provide real data from their configured integrations.",
+                description=f"""Analyze the user's request: "{query}"
+
+If this is a simple conversational input (greeting, small talk, basic question), respond directly in a friendly, helpful manner without using any tools.
+
+If this is a business/integration request that requires real data (asking about leads, tickets, issues, sales data, etc.), then use available tools to provide actual data from their configured integrations.
+
+Always be conversational and helpful, matching the user's tone and intent.""",
                 agent=self.main_agent,
-                expected_output="A helpful response with actual data from the user's integrations, not generic advice"
+                expected_output="A helpful response that matches the user's intent - either a direct conversational response or actual data from integrations when appropriate"
             )
             
             # Create crew with all agents
@@ -153,7 +159,10 @@ class CrewAIService:
                 tool_name = tool.tool_name.lower()
                 crewai_tool = CrewAITool(tool)
                 
-                if 'github' in tool_name:
+                # Fix: Check for tool type, not just name
+                if hasattr(tool, 'integration_type') and tool.integration_type == 'github':
+                    self.github_agent.tools.append(crewai_tool)
+                elif 'github' in tool_name:  # Fallback to name check
                     self.github_agent.tools.append(crewai_tool)
                 elif 'jira' in tool_name:
                     self.jira_agent.tools.append(crewai_tool)
@@ -782,19 +791,23 @@ class CrewAIService:
         """Create a specialized GitHub agent"""
         return CrewAIAgent(
             role="GitHub Repository Manager",
-            goal="Manage GitHub repositories, issues, pull requests, and development workflows",
-            backstory=f"""You are a GitHub specialist managing the {integration.name} integration. 
-            You excel at repository management, code review processes, issue tracking, and 
-            development workflow automation. You understand Git workflows, branching strategies, 
-            and collaborative development practices.
-            
-            You have access to real GitHub API tools that allow you to:
-            - Search repositories, issues, pull requests, and users
-            - Create new issues in repositories
-            - Get detailed repository information including commits and statistics
-            - Manage development workflows and collaboration
-            
-            Always use your tools to provide accurate, real-time data from GitHub.""",
+            goal="Use GitHub API tools to fetch real repository data and manage GitHub operations",
+            backstory=f"""You are a GitHub API specialist for the {integration.name} integration. 
+
+CRITICAL: You MUST always use your available GitHub tools to fetch real data. Never provide manual instructions or generic advice.
+
+When asked for repositories, issues, or any GitHub data:
+1. FIRST use your GitHub tools to fetch the actual data
+2. Present the real results from the API calls
+3. If tools fail, explain the specific error
+
+Available GitHub API operations:
+- Search repositories, issues, pull requests, and users  
+- Create new issues in repositories
+- Get detailed repository information including commits and statistics
+- Manage development workflows and collaboration
+
+ALWAYS use tools first. Never give manual instructions unless tools completely fail.""",
             verbose=True,
             llm=self.llm,
             tools=tools or []

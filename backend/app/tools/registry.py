@@ -73,7 +73,7 @@ class ToolRegistry:
             
             # Find and instantiate tools for this integration type
             for key, tool_class in self._tool_classes.items():
-                if key.startswith(f"{integration.integration_type}_"):
+                if key.startswith(f"{integration.integration_type.lower()}_"):
                     try:
                         tool = tool_class(credentials)
                         
