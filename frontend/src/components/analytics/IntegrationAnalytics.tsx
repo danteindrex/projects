@@ -2,10 +2,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api';
+// import { useAnalyticsWebSocket } from '@/hooks/useAnalyticsWebSocket';
 import { 
   ChartBarIcon,
   ExclamationCircleIcon,
-  PuzzlePieceIcon
+  PuzzlePieceIcon,
+  WifiIcon,
+  SignalIcon
 } from '@heroicons/react/24/outline';
 
 // Import all analytics components
@@ -29,6 +32,20 @@ export default function IntegrationAnalytics() {
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Real-time analytics WebSocket connection (temporarily disabled for debugging)
+  // const { 
+  //   analyticsData, 
+  //   isConnected, 
+  //   error: wsError, 
+  //   requestUpdate, 
+  //   subscribeToIntegration 
+  // } = useAnalyticsWebSocket();
+  
+  // Temporary mock values for debugging
+  const analyticsData = null;
+  const isConnected = false;
+  const requestUpdate = () => {};
 
   useEffect(() => {
     loadIntegrations();
@@ -39,37 +56,60 @@ export default function IntegrationAnalytics() {
       setLoading(true);
       setError(null);
       
+      console.log('🔍 Loading integrations...');
       const data = await apiClient.getIntegrations();
+      console.log('📊 Raw integrations data:', data);
+      
       if (!data || !Array.isArray(data)) {
         throw new Error('Invalid integrations data received from server');
       }
       
-      // Only show active integrations that have analytics support
-      const activeIntegrations = data.filter((integration: Integration) => 
-        integration.status === 'active' && isAnalyticsSupported(integration.integration_type)
+      console.log(`📈 Found ${data.length} total integrations`);
+      
+      // Log all integrations with their details
+      data.forEach((integration: Integration, index) => {
+        console.log(`${index + 1}. ${integration.name} (${integration.integration_type}) - Status: ${integration.status}`);
+      });
+      
+      // Filter for analytics-supported integrations
+      const supportedIntegrations = data.filter((integration: Integration) => 
+        isAnalyticsSupported(integration.integration_type)
       );
       
-      setIntegrations(activeIntegrations);
+      console.log(`🎯 ${supportedIntegrations.length} integrations support analytics`);
+      
+      // Filter for active integrations
+      const activeIntegrations = supportedIntegrations.filter((integration: Integration) => {
+        const normalizedStatus = integration.status.toLowerCase()
+          .replace('integrationstatus.', '')  // Remove enum prefix
+          .replace('_', '');  // Remove underscores
+        
+        console.log(`🔍 Checking status: ${integration.status} (normalized: ${normalizedStatus})`);
+        return normalizedStatus === 'active';
+      });
+      
+      console.log(`✅ ${activeIntegrations.length} active integrations with analytics support`);
+      
+      // Show ALL supported integrations for debugging, not just active ones
+      setIntegrations(supportedIntegrations);
       
       // Set first integration as active tab
-      if (activeIntegrations.length > 0 && !activeTab) {
-        setActiveTab(activeIntegrations[0].id.toString());
+      if (supportedIntegrations.length > 0 && !activeTab) {
+        setActiveTab(supportedIntegrations[0].id.toString());
       }
       
-      // If no active integrations, show helpful message
-      if (activeIntegrations.length === 0 && data.length > 0) {
-        const inactiveCount = data.filter((integration: Integration) => 
-          isAnalyticsSupported(integration.integration_type)
-        ).length;
-        
-        if (inactiveCount > 0) {
-          setError(`You have ${inactiveCount} supported integration(s) that are not active. Please activate them in the Integrations section to view analytics.`);
-        }
+      // Provide detailed feedback
+      if (supportedIntegrations.length === 0 && data.length > 0) {
+        const unsupportedTypes = data.map(i => i.integration_type).filter(type => !isAnalyticsSupported(type));
+        setError(`No supported integrations found. You have integrations of types: ${unsupportedTypes.join(', ')}. Supported types are: github, slack, jira, salesforce, zendesk, trello, asana.`);
+      } else if (activeIntegrations.length === 0 && supportedIntegrations.length > 0) {
+        const inactiveIntegrations = supportedIntegrations.filter(i => i.status !== 'active');
+        setError(`Found ${supportedIntegrations.length} supported integration(s), but none are active. Inactive integrations: ${inactiveIntegrations.map(i => `${i.name} (${i.status})`).join(', ')}. Please activate them in the Integrations section.`);
       }
     } catch (err: any) {
       const errorMessage = err?.message || 'Failed to load integrations';
       setError(errorMessage);
-      console.error('Failed to load integrations:', err);
+      console.error('❌ Failed to load integrations:', err);
     } finally {
       setLoading(false);
     }
@@ -77,7 +117,17 @@ export default function IntegrationAnalytics() {
 
   const isAnalyticsSupported = (integrationType: string): boolean => {
     const supportedTypes = ['github', 'slack', 'jira', 'salesforce', 'zendesk', 'trello', 'asana'];
-    return supportedTypes.includes(integrationType.toLowerCase());
+    
+    // Handle both enum values (IntegrationType.GITHUB) and string values ('github')
+    const normalizedType = integrationType.toLowerCase()
+      .replace('integrationtype.', '')  // Remove enum prefix
+      .replace('_', '');  // Remove underscores
+    
+    console.log(`🔍 Checking if ${integrationType} (normalized: ${normalizedType}) is supported`);
+    const isSupported = supportedTypes.includes(normalizedType);
+    console.log(`${isSupported ? '✅' : '❌'} ${integrationType} support: ${isSupported}`);
+    
+    return isSupported;
   };
 
   const getIntegrationIcon = (type: string) => {
@@ -99,28 +149,42 @@ export default function IntegrationAnalytics() {
   };
 
   const renderAnalyticsComponent = (integration: Integration) => {
-    const integrationType = integration.integration_type.toLowerCase();
+    // Normalize the integration type to handle enum values
+    const integrationType = integration.integration_type.toLowerCase()
+      .replace('integrationtype.', '')  // Remove enum prefix
+      .replace('_', '');  // Remove underscores
+    
+    console.log(`🎯 Rendering analytics for: ${integration.integration_type} (normalized: ${integrationType})`);
     
     switch (integrationType) {
       case 'github':
+        console.log('✅ Loading GitHubAnalytics component');
         return <GitHubAnalytics integrationId={integration.id} integrationName={integration.name} />;
       case 'slack':
+        console.log('✅ Loading SlackAnalytics component');
         return <SlackAnalytics integrationId={integration.id} integrationName={integration.name} />;
       case 'jira':
+        console.log('✅ Loading JiraAnalytics component');
         return <JiraAnalytics integrationId={integration.id} integrationName={integration.name} />;
       case 'salesforce':
+        console.log('✅ Loading SalesforceAnalytics component');
         return <SalesforceAnalytics integrationId={integration.id} integrationName={integration.name} />;
       case 'zendesk':
+        console.log('✅ Loading ZendeskAnalytics component');
         return <ZendeskAnalytics integrationId={integration.id} integrationName={integration.name} />;
       case 'trello':
+        console.log('✅ Loading TrelloAnalytics component');
         return <TrelloAnalytics integrationId={integration.id} integrationName={integration.name} />;
       case 'asana':
+        console.log('✅ Loading AsanaAnalytics component');
         return <AsanaAnalytics integrationId={integration.id} integrationName={integration.name} />;
       default:
+        console.log(`❌ No analytics component found for: ${integrationType}`);
         return (
           <div className="text-center py-8">
             <ChartBarIcon className="mx-auto h-8 w-8 text-neutral-400 mb-2" />
             <p className="text-sm text-neutral-600">Analytics for {integrationType} coming soon</p>
+            <p className="text-xs text-neutral-500 mt-2">Debug: Original type was "{integration.integration_type}"</p>
           </div>
         );
     }
@@ -210,12 +274,50 @@ export default function IntegrationAnalytics() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-xl font-semibold text-neutral-900 mb-2">Integration Analytics</h2>
-        <p className="text-sm text-neutral-600">
-          View detailed analytics and metrics for your configured integrations
-        </p>
+      {/* Header with Real-time Status */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-neutral-900 mb-2">Integration Analytics</h2>
+          <p className="text-sm text-neutral-600">
+            View detailed analytics and metrics for your configured integrations
+          </p>
+        </div>
+        
+        {/* Real-time Connection Status */}
+        <div className="flex items-center space-x-3">
+          {analyticsData && (
+            <div className="text-sm text-neutral-600">
+              <span className="font-medium">{analyticsData.total_calls_24h}</span> calls today
+            </div>
+          )}
+          
+          <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium ${
+            isConnected 
+              ? 'bg-green-100 text-green-800' 
+              : 'bg-neutral-100 text-neutral-600'
+          }`}>
+            {isConnected ? (
+              <>
+                <SignalIcon className="h-3 w-3" />
+                <span>Live</span>
+              </>
+            ) : (
+              <>
+                <WifiIcon className="h-3 w-3" />
+                <span>Offline</span>
+              </>
+            )}
+          </div>
+          
+          {isConnected && (
+            <button
+              onClick={requestUpdate}
+              className="text-xs text-primary-600 hover:text-primary-700 underline"
+            >
+              Refresh
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Integration Tabs */}

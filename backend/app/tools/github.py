@@ -23,18 +23,25 @@ class GitHubSearchTool(BaseBusinessTool):
     
     @property
     def required_credentials(self) -> List[str]:
-        # Check for access_token first, fallback to api_key
-        if "access_token" in self.credentials.credentials:
-            return ["access_token"]
-        elif "api_key" in self.credentials.credentials:
-            return ["api_key"]
-        else:
-            return ["access_token"]  # Default expectation
+        # GitHub tools are flexible with token key names
+        return []  # We'll validate manually in _get_access_token()
     
     def _get_access_token(self) -> str:
         """Get access token from credentials, supporting multiple key names."""
         creds = self.credentials.credentials
-        return creds.get("access_token") or creds.get("api_key") or ""
+        
+        # Try common GitHub token key names
+        token = (creds.get("access_token") or 
+                creds.get("api_key") or 
+                creds.get("token") or 
+                creds.get("personal_access_token") or
+                creds.get("github_token") or "")
+                
+        if not token:
+            available_keys = list(creds.keys())
+            raise ValueError(f"No GitHub token found. Available credential keys: {available_keys}. Expected one of: access_token, api_key, token, personal_access_token, github_token")
+            
+        return token
     
     async def _test_connection_impl(self) -> Dict[str, Any]:
         """Test GitHub connection."""
@@ -77,7 +84,7 @@ class GitHubSearchTool(BaseBusinessTool):
             ))
             
             headers = {
-                "Authorization": f"token {self.credentials.credentials['access_token']}",
+                "Authorization": f"token {self._get_access_token()}",
                 "Accept": "application/vnd.github.v3+json",
                 "User-Agent": "BusinessPlatform/1.0"
             }
@@ -197,18 +204,25 @@ class GitHubCreateIssueTool(BaseBusinessTool):
     
     @property
     def required_credentials(self) -> List[str]:
-        # Check for access_token first, fallback to api_key
-        if "access_token" in self.credentials.credentials:
-            return ["access_token"]
-        elif "api_key" in self.credentials.credentials:
-            return ["api_key"]
-        else:
-            return ["access_token"]  # Default expectation
+        # GitHub tools are flexible with token key names
+        return []  # We'll validate manually in _get_access_token()
     
     def _get_access_token(self) -> str:
         """Get access token from credentials, supporting multiple key names."""
         creds = self.credentials.credentials
-        return creds.get("access_token") or creds.get("api_key") or ""
+        
+        # Try common GitHub token key names
+        token = (creds.get("access_token") or 
+                creds.get("api_key") or 
+                creds.get("token") or 
+                creds.get("personal_access_token") or
+                creds.get("github_token") or "")
+                
+        if not token:
+            available_keys = list(creds.keys())
+            raise ValueError(f"No GitHub token found. Available credential keys: {available_keys}. Expected one of: access_token, api_key, token, personal_access_token, github_token")
+            
+        return token
     
     async def _test_connection_impl(self) -> Dict[str, Any]:
         """Test by getting user repositories."""
@@ -249,7 +263,7 @@ class GitHubCreateIssueTool(BaseBusinessTool):
             ))
             
             headers = {
-                "Authorization": f"token {self.credentials.credentials['access_token']}",
+                "Authorization": f"token {self._get_access_token()}",
                 "Accept": "application/vnd.github.v3+json",
                 "User-Agent": "BusinessPlatform/1.0"
             }
@@ -334,18 +348,25 @@ class GitHubGetRepositoryTool(BaseBusinessTool):
     
     @property
     def required_credentials(self) -> List[str]:
-        # Check for access_token first, fallback to api_key
-        if "access_token" in self.credentials.credentials:
-            return ["access_token"]
-        elif "api_key" in self.credentials.credentials:
-            return ["api_key"]
-        else:
-            return ["access_token"]  # Default expectation
+        # GitHub tools are flexible with token key names
+        return []  # We'll validate manually in _get_access_token()
     
     def _get_access_token(self) -> str:
         """Get access token from credentials, supporting multiple key names."""
         creds = self.credentials.credentials
-        return creds.get("access_token") or creds.get("api_key") or ""
+        
+        # Try common GitHub token key names
+        token = (creds.get("access_token") or 
+                creds.get("api_key") or 
+                creds.get("token") or 
+                creds.get("personal_access_token") or
+                creds.get("github_token") or "")
+                
+        if not token:
+            available_keys = list(creds.keys())
+            raise ValueError(f"No GitHub token found. Available credential keys: {available_keys}. Expected one of: access_token, api_key, token, personal_access_token, github_token")
+            
+        return token
     
     async def _test_connection_impl(self) -> Dict[str, Any]:
         """Test connection."""
@@ -368,7 +389,7 @@ class GitHubGetRepositoryTool(BaseBusinessTool):
             ))
             
             headers = {
-                "Authorization": f"token {self.credentials.credentials['access_token']}",
+                "Authorization": f"token {self._get_access_token()}",
                 "Accept": "application/vnd.github.v3+json",
                 "User-Agent": "BusinessPlatform/1.0"
             }
@@ -486,18 +507,25 @@ class GitHubListRepositoriesTool(BaseBusinessTool):
     
     @property
     def required_credentials(self) -> List[str]:
-        # Check for access_token first, fallback to api_key
-        if "access_token" in self.credentials.credentials:
-            return ["access_token"]
-        elif "api_key" in self.credentials.credentials:
-            return ["api_key"]
-        else:
-            return ["access_token"]  # Default expectation
+        # GitHub tools are flexible with token key names
+        return []  # We'll validate manually in _get_access_token()
     
     def _get_access_token(self) -> str:
         """Get access token from credentials, supporting multiple key names."""
         creds = self.credentials.credentials
-        return creds.get("access_token") or creds.get("api_key") or ""
+        
+        # Try common GitHub token key names
+        token = (creds.get("access_token") or 
+                creds.get("api_key") or 
+                creds.get("token") or 
+                creds.get("personal_access_token") or
+                creds.get("github_token") or "")
+                
+        if not token:
+            available_keys = list(creds.keys())
+            raise ValueError(f"No GitHub token found. Available credential keys: {available_keys}. Expected one of: access_token, api_key, token, personal_access_token, github_token")
+            
+        return token
     
     async def _test_connection_impl(self) -> Dict[str, Any]:
         """Test by getting user repositories."""
@@ -530,7 +558,7 @@ class GitHubListRepositoriesTool(BaseBusinessTool):
             ))
             
             headers = {
-                "Authorization": f"token {self.credentials.credentials['access_token']}",
+                "Authorization": f"token {self._get_access_token()}",
                 "Accept": "application/vnd.github.v3+json",
                 "User-Agent": "BusinessPlatform/1.0"
             }

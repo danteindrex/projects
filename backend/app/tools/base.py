@@ -10,6 +10,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
+from crewai.tools import tool
 
 logger = logging.getLogger(__name__)
 
@@ -181,41 +182,38 @@ class BaseBusinessTool(ABC):
         pass
 
 
-class CrewAITool:
+def CrewAITool(business_tool: BaseBusinessTool):
     """
-    Wrapper to make BaseBusinessTool compatible with CrewAI framework.
-    This bridges our business tools with CrewAI's tool system.
+    Wrapper factory to make BaseBusinessTool compatible with CrewAI framework.
+    Returns a CrewAI tool created using the @tool decorator.
     """
     
-    def __init__(self, business_tool: BaseBusinessTool):
-        self.business_tool = business_tool
-        self.name = business_tool.tool_name
-        self.description = business_tool.description
-    
-    def _run(self, **kwargs) -> str:
-        """Synchronous execution for CrewAI compatibility."""
-        # Run async method in event loop
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+    @tool(business_tool.tool_name)
+    def execute_business_tool(**kwargs) -> str:
+        """Execute business tool operation. This tool provides real-time data from integrated business systems and supports various operations including search, create, update, and data retrieval. Parameters: query (str): Input parameters for the tool operation. Returns: str: JSON formatted results from the business tool operation."""
+        import asyncio
+        from concurrent.futures import ThreadPoolExecutor
         
-        result = loop.run_until_complete(self.business_tool.execute(**kwargs))
+        def run_async_in_thread():
+            """Run the async business tool in a separate thread with its own event loop."""
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            try:
+                return new_loop.run_until_complete(business_tool.execute(**kwargs))
+            finally:
+                new_loop.close()
+        
+        # Run the async function in a separate thread to avoid event loop conflicts
+        with ThreadPoolExecutor() as executor:
+            future = executor.submit(run_async_in_thread)
+            result = future.result()
         
         if result.success:
             return json.dumps(result.data, default=str)
         else:
             return f"Error: {result.error}"
     
-    async def _arun(self, **kwargs) -> str:
-        """Asynchronous execution for CrewAI compatibility."""
-        result = await self.business_tool.execute(**kwargs)
-        
-        if result.success:
-            return json.dumps(result.data, default=str)
-        else:
-            return f"Error: {result.error}"
+    return execute_business_tool
 
 
 class ToolCategory:

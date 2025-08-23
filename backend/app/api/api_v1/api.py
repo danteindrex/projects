@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.api_v1.endpoints import auth, integrations, chat, health, oauth, monitoring, analytics, integration_data
+from app.api.api_v1.endpoints import auth, integrations, chat, health, oauth, monitoring, analytics, integration_data, analytics_websocket
 
 api_router = APIRouter()
 
@@ -12,3 +12,4 @@ api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
 api_router.include_router(health.router, prefix="/health", tags=["health"])
 api_router.include_router(monitoring.router, prefix="/monitoring", tags=["monitoring"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
+api_router.include_router(analytics_websocket.router, prefix="/analytics", tags=["analytics-websocket"])

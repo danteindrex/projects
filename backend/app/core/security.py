@@ -121,3 +121,26 @@ rate_limiter = RateLimiter(
 def check_rate_limit(key: str) -> bool:
     """Check rate limit for a given key"""
     return rate_limiter.is_allowed(key)
+
+async def get_current_active_user_ws(token: str) -> Optional[User]:
+    """Get current active user from WebSocket token"""
+    if not token:
+        return None
+    
+    try:
+        payload = verify_token(token)
+        if payload is None:
+            return None
+        
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            return None
+        
+        with get_db_session() as db:
+            user = db.query(User).filter(User.id == user_id).first()
+            if user and user.is_active:
+                return user
+            return None
+            
+    except Exception:
+        return None
