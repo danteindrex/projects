@@ -155,7 +155,7 @@ export function IntegrationEditForm({ integration, onSave, onCancel }: Integrati
         rate_limit: data.rate_limit || undefined,
         timeout: data.timeout || undefined,
         status: data.status,
-        credentials,
+        credentials: credentials as any,
       };
 
       const updatedIntegration = await apiClient.updateIntegration(integration.id, updateData);

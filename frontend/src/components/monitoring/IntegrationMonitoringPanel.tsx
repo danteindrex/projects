@@ -52,9 +52,9 @@ export default function IntegrationMonitoringPanel({ className = '' }: Integrati
       setIntegrations(integrationsData);
       
       // Transform summary data to match expected structure
-      if (summaryData && summaryData.total_integrations !== undefined) {
+      if (summaryData && (summaryData as any).total_integrations !== undefined) {
         const transformedSummary = {
-          total: summaryData.total_integrations || summaryData.total || 0,
+          total: (summaryData as any).total_integrations || (summaryData as any).total || 0,
           healthy: summaryData.healthy || 0,
           degraded: summaryData.degraded || 0,
           unhealthy: summaryData.unhealthy || 0,
@@ -292,8 +292,8 @@ export default function IntegrationMonitoringPanel({ className = '' }: Integrati
                   <div>
                     <p className="text-neutral-500">Last Check</p>
                     <p className="font-medium">
-                      {integration.last_health_check 
-                        ? new Date(integration.last_health_check).toLocaleTimeString()
+                      {(integration as any).last_health_check 
+                        ? new Date((integration as any).last_health_check).toLocaleTimeString()
                         : 'Never'
                       }
                     </p>

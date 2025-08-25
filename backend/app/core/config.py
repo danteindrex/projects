@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:3001"]
+    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:3001", "https://*.vercel.app"]
     ALLOWED_HOSTS: List[str] = ["*"]
     
     # Integration Templates

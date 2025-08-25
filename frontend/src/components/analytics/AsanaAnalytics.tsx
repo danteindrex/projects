@@ -212,7 +212,7 @@ export default function AsanaAnalytics({ integrationId, integrationName }: Asana
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {activeProjects.slice(0, 6).map((project) => {
               const projectTasks = tasks.filter(task => 
-                task.projects && task.projects.some(p => p.gid === project.gid)
+                task.projects && task.projects.some((p: any) => p.gid === project.gid)
               );
               const projectActiveTasks = projectTasks.filter(task => !task.completed);
               const projectTeam = teams.find(team => team.gid === project.team?.gid);

@@ -23,8 +23,8 @@ export default function DashboardPage() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const [dashboardData, setDashboardData] = useState({
-    integrations: [],
-    recentActivity: [],
+    integrations: [] as any[],
+    recentActivity: [] as any[],
     stats: {
       activeIntegrations: 0,
       chatSessions: 0,
@@ -32,7 +32,7 @@ export default function DashboardPage() {
       pendingTasks: 0
     },
     loading: true,
-    error: null
+    error: null as string | null
   });
 
   useEffect(() => {
@@ -65,10 +65,10 @@ export default function DashboardPage() {
       // Get recent activity from integrations with enhanced monitoring info
       const recentActivity = integrations
         .filter(i => i.last_sync || i.created_at)
-        .sort((a, b) => new Date(b.last_sync || b.created_at) - new Date(a.last_sync || a.created_at))
+        .sort((a, b) => new Date(b.last_sync || b.created_at).getTime() - new Date(a.last_sync || a.created_at).getTime())
         .slice(0, 6)
         .map((integration, index) => {
-          const getActivityMessage = (integration) => {
+          const getActivityMessage = (integration: any) => {
             if (integration.status === 'active') {
               const metrics = integration.config?.monitoring_preferences || [];
               const primaryMetric = metrics[0]?.replace('_', ' ') || 'system data';
@@ -107,16 +107,16 @@ export default function DashboardPage() {
       setDashboardData(prev => ({
         ...prev,
         loading: false,
-        error: error.message || 'Failed to load dashboard data'
+        error: (error as Error).message || 'Failed to load dashboard data'
       }));
     }
   };
 
-  const getRelativeTime = (dateString) => {
+  const getRelativeTime = (dateString: string) => {
     if (!dateString) return 'Unknown';
     const date = new Date(dateString);
     const now = new Date();
-    const diffInMinutes = Math.floor((now - date) / (1000 * 60));
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
     
     if (diffInMinutes < 1) return 'Just now';
     if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`;

@@ -42,7 +42,7 @@ export default function LoginPage() {
         <LoginForm
           onSubmit={handleLogin}
           isLoading={isLoading}
-          error={error}
+          error={error || undefined}
         />
       </div>
     </div>

@@ -71,7 +71,7 @@ export default function LiveMetricsDashboard() {
       cpu_usage: Math.max(0, Math.min(100, prev.cpu_usage + (Math.random() - 0.5) * 10)),
       memory_usage: Math.max(0, Math.min(100, prev.memory_usage + (Math.random() - 0.5) * 5)),
       active_connections: Math.max(0, prev.active_connections + Math.floor((Math.random() - 0.5) * 50)),
-      requests_per_second: Math.max(0, prev.requests_per_second + (Math.random() - 0.5) * 20)),
+      requests_per_second: Math.max(0, prev.requests_per_second + (Math.random() - 0.5) * 20),
       error_rate: Math.max(0, Math.min(100, prev.error_rate + (Math.random() - 0.5) * 2)),
       response_time: Math.max(0, prev.response_time + (Math.random() - 0.5) * 50)
     }));

@@ -13,6 +13,9 @@ engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,
     pool_recycle=300,
+    pool_size=20,
+    max_overflow=30,
+    pool_timeout=30,
     echo=settings.DEBUG,
     poolclass=StaticPool if settings.ENVIRONMENT == "test" else None
 )

@@ -41,6 +41,7 @@ export default function SystemHealthDashboard({ className = '' }: SystemHealthDa
       // Transform the metrics data to match expected structure
       if (metrics) {
         const transformedMetrics = {
+          timestamp: new Date().toISOString(),
           system: {
             cpu_usage_percent: metrics.cpu_percent || 0,
             memory_usage_percent: metrics.memory_percent || 0,

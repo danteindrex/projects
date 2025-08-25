@@ -167,6 +167,7 @@ class CacheNamespaces:
     USER_DATA = "user"
     INTEGRATION_TEMPLATES = "int_templates"
     INTEGRATION_HEALTH = "int_health"
+    INTEGRATION_DATA = "int_data"
     CHAT_SESSIONS = "chat_sessions"
     AUTH_TOKENS = "auth_tokens"
     RATE_LIMITS = "rate_limits"

@@ -116,9 +116,10 @@ export default function NotificationSystem() {
 
   // Public method to add notifications from other components
   // This can be called when real events happen (integrations connect, errors occur, etc.)
-  React.useImperativeHandle(React.useRef(), () => ({
+  const ref = React.useRef<{ addNotification: typeof addNotification }>(null);
+  React.useImperativeHandle(ref, () => ({
     addNotification
-  }), [settings, notifications]);
+  }), [addNotification]);
 
   const playNotificationSound = () => {
     try {

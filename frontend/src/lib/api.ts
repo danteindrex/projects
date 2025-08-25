@@ -660,11 +660,11 @@ class ApiClient {
 
     // Only set JSON content-type if not using FormData
     if (!(options.body instanceof FormData)) {
-      headers['Content-Type'] = 'application/json';
+      (headers as any)['Content-Type'] = 'application/json';
     }
 
     if (this.token) {
-      headers.Authorization = `Bearer ${this.token}`;
+      (headers as any).Authorization = `Bearer ${this.token}`;
     }
 
     const config: RequestInit = {

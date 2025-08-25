@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { apiClient } from '@/lib/api';
 // import { useAnalyticsWebSocket } from '@/hooks/useAnalyticsWebSocket';
 import { 
@@ -81,7 +82,8 @@ export default function IntegrationAnalytics() {
       // Filter for active integrations
       const activeIntegrations = supportedIntegrations.filter((integration: Integration) => {
         const normalizedStatus = integration.status.toLowerCase()
-          .replace('integrationstatus.', '')  // Remove enum prefix
+          .replace('integrationstatus.', '')  // Remove lowercase enum prefix
+          .replace(/^.*\./, '')  // Remove any enum prefix (handles IntegrationType.GITHUB)
           .replace('_', '');  // Remove underscores
         
         console.log(`🔍 Checking status: ${integration.status} (normalized: ${normalizedStatus})`);
@@ -120,7 +122,8 @@ export default function IntegrationAnalytics() {
     
     // Handle both enum values (IntegrationType.GITHUB) and string values ('github')
     const normalizedType = integrationType.toLowerCase()
-      .replace('integrationtype.', '')  // Remove enum prefix
+      .replace('integrationtype.', '')  // Remove lowercase enum prefix
+      .replace(/^.*\./, '')  // Remove any enum prefix (handles IntegrationType.GITHUB)
       .replace('_', '');  // Remove underscores
     
     console.log(`🔍 Checking if ${integrationType} (normalized: ${normalizedType}) is supported`);
@@ -145,13 +148,14 @@ export default function IntegrationAnalytics() {
       azure: '🔷',
       google_analytics: '📈'
     };
-    return icons[type.toLowerCase()] || '🔌';
+    return icons[type.toLowerCase() as keyof typeof icons] || '🔌';
   };
 
   const renderAnalyticsComponent = (integration: Integration) => {
     // Normalize the integration type to handle enum values
     const integrationType = integration.integration_type.toLowerCase()
-      .replace('integrationtype.', '')  // Remove enum prefix
+      .replace('integrationtype.', '')  // Remove lowercase enum prefix
+      .replace(/^.*\./, '')  // Remove any enum prefix (handles IntegrationType.GITHUB)
       .replace('_', '');  // Remove underscores
     
     console.log(`🎯 Rendering analytics for: ${integration.integration_type} (normalized: ${integrationType})`);
@@ -184,7 +188,7 @@ export default function IntegrationAnalytics() {
           <div className="text-center py-8">
             <ChartBarIcon className="mx-auto h-8 w-8 text-neutral-400 mb-2" />
             <p className="text-sm text-neutral-600">Analytics for {integrationType} coming soon</p>
-            <p className="text-xs text-neutral-500 mt-2">Debug: Original type was "{integration.integration_type}"</p>
+            <p className="text-xs text-neutral-500 mt-2">Debug: Original type was &quot;{integration.integration_type}&quot;</p>
           </div>
         );
     }
@@ -264,7 +268,7 @@ export default function IntegrationAnalytics() {
           </div>
         </div>
         <p className="text-xs text-neutral-500">
-          Go to <a href="/integrations" className="text-primary-600 hover:underline">Integrations</a> to set up your first connection
+          Go to <Link href="/integrations" className="text-primary-600 hover:underline">Integrations</Link> to set up your first connection
         </p>
       </div>
     );
@@ -287,7 +291,7 @@ export default function IntegrationAnalytics() {
         <div className="flex items-center space-x-3">
           {analyticsData && (
             <div className="text-sm text-neutral-600">
-              <span className="font-medium">{analyticsData.total_calls_24h}</span> calls today
+              <span className="font-medium">{(analyticsData as any).total_calls_24h}</span> calls today
             </div>
           )}
           

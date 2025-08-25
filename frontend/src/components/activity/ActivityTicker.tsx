@@ -249,7 +249,7 @@ export default function ActivityTicker() {
                       <div className="text-xs text-neutral-500">
                         {Object.entries(activity.metadata).slice(0, 2).map(([key, value]) => (
                           <span key={key} className="mr-2">
-                            {key}: {value}
+                            {key}: {String(value)}
                           </span>
                         ))}
                       </div>

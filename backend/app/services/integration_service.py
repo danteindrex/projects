@@ -243,7 +243,7 @@ class IntegrationService:
     """Service for managing real integrations with business systems"""
     
     def __init__(self):
-        self.session_timeout = aiohttp.ClientTimeout(total=30)
+        self.session_timeout = aiohttp.ClientTimeout(total=10)
         
     def get_integration_template(self, integration_type: IntegrationType) -> Dict[str, Any]:
         """Get the template configuration for an integration type"""

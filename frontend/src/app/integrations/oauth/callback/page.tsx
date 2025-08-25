@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api';
 import { CheckCircleIcon, XCircleIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
@@ -11,7 +11,7 @@ interface OAuthCallbackState {
   integration?: any;
 }
 
-export default function OAuthCallback() {
+function OAuthCallbackContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [state, setState] = useState<OAuthCallbackState>({
@@ -167,5 +167,23 @@ export default function OAuthCallback() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function OAuthCallback() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100 flex items-center justify-center">
+        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full mx-4">
+          <div className="text-center">
+            <ArrowPathIcon className="mx-auto h-12 w-12 text-primary-600 animate-spin" />
+            <h1 className="mt-4 text-lg font-semibold text-neutral-900">Loading...</h1>
+            <p className="mt-2 text-sm text-neutral-600">Processing OAuth callback...</p>
+          </div>
+        </div>
+      </div>
+    }>
+      <OAuthCallbackContent />
+    </Suspense>
   );
 }

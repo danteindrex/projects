@@ -50,7 +50,7 @@ const integrationSchema = z.object({
   // Configuration fields
   rate_limit: z.number().optional(),
   timeout: z.number().optional(),
-  config: z.record(z.any()).optional(),
+  config: z.record(z.string(), z.any()).optional(),
 }).passthrough();
 
 type IntegrationFormData = z.infer<typeof integrationSchema>;
@@ -107,7 +107,7 @@ export default function IntegrationWizard({ onComplete, onCancel, integrationToE
       setError(null);
       
       const response = await apiClient.getIntegrationTemplates();
-      const templateData = response.templates || response;
+      const templateData = (response as any).templates || response;
       
       const processedTemplates: Record<string, IntegrationTemplate> = {};
       
@@ -145,7 +145,7 @@ export default function IntegrationWizard({ onComplete, onCancel, integrationToE
 
   const getCategoryFromType = (type: string): string => {
     for (const [category, types] of Object.entries(INTEGRATION_CATEGORIES)) {
-      if (types.includes(type as any)) {
+      if ((types as readonly string[]).includes(type)) {
         return category;
       }
     }
@@ -271,9 +271,9 @@ export default function IntegrationWizard({ onComplete, onCancel, integrationToE
       });
       
       // Also collect any additional fields that might be in the template
-      if (selectedTemplate.required_credentials || selectedTemplate.config?.required_credentials) {
-        const requiredCreds = selectedTemplate.required_credentials || selectedTemplate.config?.required_credentials || [];
-        requiredCreds.forEach(field => {
+      if ((selectedTemplate as any).required_credentials || (selectedTemplate as any).config?.required_credentials) {
+        const requiredCreds = (selectedTemplate as any).required_credentials || (selectedTemplate as any).config?.required_credentials || [];
+        requiredCreds.forEach((field: string) => {
           const value = (data as any)[field];
           if (value && value.trim()) {
             credentials[field] = value.trim();
@@ -281,9 +281,9 @@ export default function IntegrationWizard({ onComplete, onCancel, integrationToE
         });
       }
       
-      if (selectedTemplate.optional_credentials || selectedTemplate.config?.optional_credentials) {
-        const optionalCreds = selectedTemplate.optional_credentials || selectedTemplate.config?.optional_credentials || [];
-        optionalCreds.forEach(field => {
+      if ((selectedTemplate as any).optional_credentials || (selectedTemplate as any).config?.optional_credentials) {
+        const optionalCreds = (selectedTemplate as any).optional_credentials || (selectedTemplate as any).config?.optional_credentials || [];
+        optionalCreds.forEach((field: string) => {
           const value = (data as any)[field];
           if (value && value.trim()) {
             credentials[field] = value.trim();
@@ -293,16 +293,16 @@ export default function IntegrationWizard({ onComplete, onCancel, integrationToE
       
       // Build base URL if not provided
       let baseUrl = data.base_url;
-      if (!baseUrl && (selectedTemplate.base_url_template || selectedTemplate.config?.base_url_template)) {
+      if (!baseUrl && ((selectedTemplate as any).base_url_template || (selectedTemplate as any).config?.base_url_template)) {
         // Try to build from template
-        baseUrl = selectedTemplate.base_url_template || selectedTemplate.config?.base_url_template || '';
+        baseUrl = (selectedTemplate as any).base_url_template || (selectedTemplate as any).config?.base_url_template || '';
       }
       
       const integrationData = {
         name: data.name,
         description: data.description || selectedTemplate.description,
         integration_type: data.integration_type,
-        base_url: baseUrl || selectedTemplate.base_url_template || selectedTemplate.config?.base_url_template || '',
+        base_url: baseUrl || (selectedTemplate as any).base_url_template || (selectedTemplate as any).config?.base_url_template || '',
         credentials: credentials,
         config: {
           auth_method: authMethod,
@@ -354,7 +354,7 @@ export default function IntegrationWizard({ onComplete, onCancel, integrationToE
       client_secret: clientSecret,
       name: data.name,
       description: data.description,
-      config: selectedTemplate.default_settings || selectedTemplate.config?.default_settings || {}
+      config: (selectedTemplate as any).default_settings || (selectedTemplate as any).config?.default_settings || {}
     };
 
     const authResponse = await apiClient.initiateOAuth({
@@ -736,7 +736,7 @@ export default function IntegrationWizard({ onComplete, onCancel, integrationToE
                   </h4>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {(selectedTemplate.required_credentials || selectedTemplate.config?.required_credentials || []).map((field) => {
+                    {((selectedTemplate as any).required_credentials || (selectedTemplate as any).config?.required_credentials || []).map((field: string) => {
                       // Map template field names to form field names
                       const formFieldName = field as keyof IntegrationFormData;
                       
@@ -761,11 +761,11 @@ export default function IntegrationWizard({ onComplete, onCancel, integrationToE
                   </div>
                   
                   {/* Show optional credentials if any */}
-                  {(selectedTemplate.optional_credentials || selectedTemplate.config?.optional_credentials || []).length > 0 && (
+                  {((selectedTemplate as any).optional_credentials || (selectedTemplate as any).config?.optional_credentials || []).length > 0 && (
                     <div className="mt-4">
                       <h5 className="text-sm font-medium text-neutral-700 mb-2">Optional Credentials</h5>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {(selectedTemplate.optional_credentials || selectedTemplate.config?.optional_credentials || []).map((field) => {
+                        {((selectedTemplate as any).optional_credentials || (selectedTemplate as any).config?.optional_credentials || []).map((field: string) => {
                           const formFieldName = field as keyof IntegrationFormData;
                           
                           return (

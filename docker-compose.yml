@@ -1,4 +1,35 @@
 services:
+  # Backend API Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: businesshub-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Override specific settings for Docker environment
+      REDIS_URL: "redis://redis:6379"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+    volumes:
+      - backend-data:/app/data
+      - backend-logs:/app/logs
+    depends_on:
+      - redis
+      - kafka
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - businesshub-network
+
   # Zookeeper for Kafka
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
@@ -12,6 +43,8 @@ services:
     volumes:
       - zookeeper-data:/var/lib/zookeeper/data
       - zookeeper-logs:/var/lib/zookeeper/log
+    networks:
+      - businesshub-network
 
   # Kafka broker
   kafka:
@@ -40,6 +73,8 @@ services:
       KAFKA_DELETE_TOPIC_ENABLE: 'true'
     volumes:
       - kafka-data:/var/lib/kafka/data
+    networks:
+      - businesshub-network
 
   # Kafka UI for monitoring
   kafka-ui:
@@ -53,6 +88,8 @@ services:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - businesshub-network
 
   # Redis for caching and session management
   redis:
@@ -63,6 +100,8 @@ services:
     volumes:
       - redis-data:/data
     command: redis-server --appendonly yes
+    networks:
+      - businesshub-network
 
   # PostgreSQL for development (disabled - using SQLite)
   # postgres:
@@ -94,3 +133,9 @@ volumes:
   zookeeper-logs:
   kafka-data:
   redis-data:
+  backend-data:
+  backend-logs:
+
+networks:
+  businesshub-network:
+    driver: bridge

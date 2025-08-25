@@ -309,7 +309,7 @@ export default function HomePage() {
                   }}
                 >
                   Set up your integrations, customize dashboards, and configure alerts. 
-                  Tailor the platform to match your team's specific workflow needs.
+                  Tailor the platform to match your team&apos;s specific workflow needs.
                 </p>
               </div>
             </article>
