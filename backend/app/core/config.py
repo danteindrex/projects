@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     KAFKA_TOPIC_PREFIX: str = "business_platform"
     
     # Redis Configuration
-    REDIS_URL: str = "redis://localhost:6380"
+    REDIS_URL: str = "redis://default:gJ3rKGgYlwOXBgya9B4I46jULZbBE1Yk@redis-11444.c228.us-central1-1.gce.redns.redis-cloud.com:11444"
     
     # Security
     SECRET_KEY: str = "change-this-in-production-use-env-file"
@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:3001", "https://*.vercel.app"]
+    CORS_ORIGINS: List[str] = ["*"]
     ALLOWED_HOSTS: List[str] = ["*"]
     
     # Integration Templates

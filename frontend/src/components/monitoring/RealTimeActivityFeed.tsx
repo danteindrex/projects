@@ -69,7 +69,7 @@ export default function RealTimeActivityFeed({ className = '' }: RealTimeActivit
 
   const connectWebSocket = () => {
     try {
-      const wsUrl = 'ws://localhost:8001/api/v1/monitoring/integrations/realtime';
+      const wsUrl = 'wss://businesshub-backend-latest.onrender.com/api/v1/monitoring/integrations/realtime';
       const ws = new WebSocket(wsUrl);
       
       ws.onopen = () => {

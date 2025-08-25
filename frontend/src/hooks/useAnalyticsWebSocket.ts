@@ -47,7 +47,7 @@ export function useAnalyticsWebSocket(): UseAnalyticsWebSocketReturn {
 
     try {
       const token = apiClient.getToken();
-      const wsUrl = `ws://localhost:8000/api/v1/analytics/ws?token=${token}`;
+      const wsUrl = `wss://businesshub-backend-latest.onrender.com/api/v1/analytics/ws?token=${token}`;
       
       wsRef.current = new WebSocket(wsUrl);
 
